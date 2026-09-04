@@ -112,8 +112,12 @@ export function describe(leg, variation) {
   const pct = Math.round(a.fraction * 100);
   // Where the two laylines meet, if the track has been worked out.
   const corner = leg.paths?.[0];
+  // The corner is the LAYLINE, and sailing out to it is usually a mistake: you
+  // arrive with no options and any overstand is pure loss. Say limit, not plan.
   const turn = corner?.tackAfterNm
-    ? ` ${word} at ${fmtDistance(corner.tackAfterNm)} (${fmtDuration(corner.tackAfterHours)}) on the ${a.tack} board, or take the other side.`
+    ? ` On the ${corner.boards[0].tack} board the layline is ` +
+      `${fmtDistance(corner.tackAfterNm)} out (${fmtDuration(corner.tackAfterHours)}) — ` +
+      `${word.toLowerCase()} before it, not at it. Dotted is the other side, same ETA.`
     : "";
   return (
     `${word} between ${fmtBearing(a.headingTrue)}T (${a.tack}, ${speed(a)}) and ` +
