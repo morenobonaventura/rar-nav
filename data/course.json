@@ -1,0 +1,115 @@
+{
+  "race": {
+    "name": "Round Aeolian Race 2026",
+    "organiser": "Yacht Club Capo d'Orlando (YCCO)",
+    "dates": "2026-09-25 to 2026-09-27",
+    "distance_nm": {
+      "full": 140,
+      "cruising": 65
+    }
+  },
+  "magnetic_variation_deg": 4.1,
+  "variation_note": "WMM-2025 @ 2026-09-25, east positive. Magnetic = True - variation.",
+  "bbox": {
+    "lat_min": 37.85,
+    "lat_max": 39.05,
+    "lon_min": 14.15,
+    "lon_max": 15.55
+  },
+  "start_finish": {
+    "name": "Capo d'Orlando",
+    "lat": 38.1667,
+    "lon": 14.7333
+  },
+  "islands": [
+    {
+      "name": "Vulcano",
+      "lat": 38.4041,
+      "lon": 14.9628,
+      "radius_nm": 2.2
+    },
+    {
+      "name": "Lipari",
+      "lat": 38.4667,
+      "lon": 14.95,
+      "radius_nm": 3.2
+    },
+    {
+      "name": "Salina",
+      "lat": 38.5667,
+      "lon": 14.85,
+      "radius_nm": 3.0
+    },
+    {
+      "name": "Panarea",
+      "lat": 38.6333,
+      "lon": 15.0667,
+      "radius_nm": 1.3
+    },
+    {
+      "name": "Stromboli",
+      "lat": 38.7889,
+      "lon": 15.2133,
+      "radius_nm": 1.5
+    },
+    {
+      "name": "Filicudi",
+      "lat": 38.5667,
+      "lon": 14.5667,
+      "radius_nm": 1.8
+    },
+    {
+      "name": "Alicudi",
+      "lat": 38.545,
+      "lon": 14.36,
+      "radius_nm": 1.4
+    }
+  ],
+  "sequence_clockwise": [
+    {
+      "island": "Alicudi",
+      "side": "starboard"
+    },
+    {
+      "island": "Filicudi",
+      "side": "starboard"
+    },
+    {
+      "gate": [
+        "Salina",
+        "Lipari"
+      ]
+    },
+    {
+      "island": "Stromboli",
+      "side": "starboard"
+    },
+    {
+      "gate": [
+        "Vulcano",
+        "Lipari"
+      ]
+    }
+  ],
+  "cruising_clockwise": [
+    {
+      "gate": [
+        "Salina",
+        "Lipari"
+      ]
+    },
+    {
+      "gate": [
+        "Vulcano",
+        "Lipari"
+      ]
+    }
+  ],
+  "rounding": {
+    "margin_nm": 1.5,
+    "arc_step_deg": 45.0,
+    "min_sweep_deg": 15.0
+  },
+  "provenance": "PLACEHOLDER GEOMETRY, NOT OFFICIAL MARKS. Island positions are geographic centroids and gate points their midpoints; radii are rough half-lengths plus margin. The course SEQUENCE (Alicudi, Filicudi, Salina/Lipari gate, Stromboli, Vulcano/Lipari gate) was confirmed by a sailor of this race, but Stromboli's clockwise side is inferred by mirror symmetry. Replace every coordinate from the official Sailing Instructions before racing.",
+  "source": "../sailing_routing/RAR/configs/rar2026.yaml"
+}

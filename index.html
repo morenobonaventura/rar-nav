@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="RAR Nav">
+<meta name="theme-color" content="#dceaf2">
+<title>RAR Nav</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="stylesheet" href="vendor/leaflet.css">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- Status rail ------------------------------------------------------------->
+<header class="rail">
+  <button id="fix" class="fix" type="button" aria-live="polite">
+    <span class="dot" id="fix-dot"></span><span id="fix-text">No fix</span>
+  </button>
+  <time id="clock">--:--:--</time>
+  <div class="rail-actions">
+    <button id="btn-night" type="button" class="icon" aria-pressed="false" title="Night colours">Night</button>
+    <button id="btn-awake" type="button" class="icon" aria-pressed="false" title="Keep the screen awake">Awake</button>
+  </div>
+</header>
+
+<!-- Instrument head --------------------------------------------------------->
+<section class="head">
+  <button class="gauge" id="gauge-sog" type="button">
+    <span class="gauge-label">SOG</span>
+    <span class="gauge-value"><span id="sog">--</span><span class="unit">kn</span></span>
+    <canvas class="spark" id="spark-sog" width="240" height="34" aria-hidden="true"></canvas>
+  </button>
+  <button class="gauge" id="gauge-cog" type="button">
+    <span class="gauge-label">COG</span>
+    <span class="gauge-value"><span id="cog">--</span><span class="unit">°T</span></span>
+    <canvas class="spark" id="spark-cog" width="240" height="34" aria-hidden="true"></canvas>
+  </button>
+</section>
+
+<!-- Map --------------------------------------------------------------------->
+<main class="map-wrap">
+  <div id="map"></div>
+  <canvas id="field" class="field" aria-hidden="true"></canvas>
+
+  <div class="map-buttons">
+    <button id="btn-centre" class="round" type="button" title="Centre on the boat">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="12" cy="12" r="4.5" fill="currentColor"/><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 1v3.5M12 19.5V23M1 12h3.5M19.5 12H23" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      <span class="sr">Centre on the boat</span>
+    </button>
+    <button id="btn-course" class="round" type="button" title="Fit the whole course">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M3 8V3h5M21 8V3h-5M3 16v5h5M21 16v5h-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      <span class="sr">Fit the whole course</span>
+    </button>
+  </div>
+
+  <!-- Readout for a tapped point -->
+  <aside id="probe" class="probe" hidden>
+    <button id="probe-close" class="probe-close" type="button" aria-label="Clear the tapped point">×</button>
+    <div class="probe-head"><span id="probe-name">Tapped point</span><span id="probe-pos"></span></div>
+    <div class="probe-grid">
+      <div><b id="probe-dist">--</b><span>distance</span></div>
+      <div><b id="probe-brgt">--</b><span>bearing true</span></div>
+      <div><b id="probe-brgm">--</b><span>bearing magnetic</span></div>
+      <div><b id="probe-eta">--</b><span id="probe-eta-label">time to go</span></div>
+    </div>
+    <p class="probe-mode" id="probe-mode"></p>
+  </aside>
+</main>
+
+<!-- Bottom sheet ------------------------------------------------------------>
+<section class="sheet" id="sheet" data-state="peek">
+  <button class="grip" id="grip" type="button" aria-label="Expand the leg list"><span></span></button>
+
+  <div class="conditions">
+    <button class="cond" id="cond-wind" type="button">
+      <span class="cond-label">Wind from</span>
+      <span class="cond-value"><span id="wind-dir">--</span>° <span id="wind-spd">--</span> kn</span>
+    </button>
+    <button class="cond" id="cond-tide" type="button">
+      <span class="cond-label">Tide toward</span>
+      <span class="cond-value"><span id="tide-dir">--</span>° <span id="tide-spd">--</span> kn</span>
+    </button>
+    <button class="cond ghost" id="cond-more" type="button" aria-label="Course and boat settings">Setup</button>
+  </div>
+
+  <div class="legs-head">
+    <span id="legs-title">Legs from the boat</span>
+    <span id="legs-total"></span>
+  </div>
+  <ol class="legs" id="legs"></ol>
+  <p class="disclaimer" id="disclaimer"></p>
+</section>
+
+<!-- Modal host -------------------------------------------------------------->
+<div class="scrim" id="scrim" hidden></div>
+
+<dialog class="panel" id="panel-conditions">
+  <h2>Wind and tide</h2>
+  <p class="hint">What you see right now. Every ETA on the course uses these numbers, held constant — this is an instrument, not a forecast.</p>
+  <div class="dial-row">
+    <div class="dial-block">
+      <h3>Wind</h3>
+      <canvas class="dial" id="dial-wind" width="200" height="200"></canvas>
+      <label>Direction it blows from<input type="number" id="in-twd" min="0" max="359" step="1" inputmode="numeric"><span>°T</span></label>
+      <label>Speed<input type="number" id="in-tws" min="0" max="60" step="0.5" inputmode="decimal"><span>kn</span></label>
+    </div>
+    <div class="dial-block">
+      <h3>Tide</h3>
+      <canvas class="dial" id="dial-tide" width="200" height="200"></canvas>
+      <label>Direction it flows toward<input type="number" id="in-set" min="0" max="359" step="1" inputmode="numeric"><span>°T</span></label>
+      <label>Speed<input type="number" id="in-drift" min="0" max="10" step="0.1" inputmode="decimal"><span>kn</span></label>
+    </div>
+  </div>
+  <p class="hint" id="ww-note"></p>
+  <div class="panel-actions"><button type="button" data-close class="primary">Done</button></div>
+</dialog>
+
+<dialog class="panel" id="panel-history">
+  <h2 id="hist-title">SOG</h2>
+  <div class="seg" role="tablist">
+    <button type="button" role="tab" data-view="series" aria-selected="true">Over time</button>
+    <button type="button" role="tab" data-view="hist" aria-selected="false">Distribution</button>
+  </div>
+  <canvas id="hist-canvas" width="640" height="320"></canvas>
+  <div class="stats" id="hist-stats"></div>
+  <p class="hint" id="hist-span"></p>
+  <div class="panel-actions"><button type="button" data-close class="primary">Done</button></div>
+</dialog>
+
+<dialog class="panel wide" id="panel-setup">
+  <h2>Setup</h2>
+
+  <h3>Course</h3>
+  <div class="seg" id="seg-direction" role="tablist">
+    <button type="button" role="tab" data-direction="clockwise" aria-selected="true">Clockwise</button>
+    <button type="button" role="tab" data-direction="counterclockwise" aria-selected="false">Counterclockwise</button>
+  </div>
+  <div class="seg" id="seg-variant" role="tablist">
+    <button type="button" role="tab" data-variant="full" aria-selected="true">Full course</button>
+    <button type="button" role="tab" data-variant="cruising" aria-selected="false">Cruising</button>
+  </div>
+  <p class="hint" id="course-provenance"></p>
+
+  <h3>Magnetic variation</h3>
+  <label class="row">Variation, east positive<input type="number" id="in-var" step="0.1" inputmode="decimal"><span>°</span></label>
+  <p class="hint" id="var-note"></p>
+
+  <h3>Boat polar</h3>
+  <p class="hint" id="polar-note"></p>
+  <div class="table-scroll"><table class="polar" id="polar-table"></table></div>
+  <div class="panel-actions spread">
+    <button type="button" id="polar-reset" class="ghost-btn">Reset to shipped values</button>
+    <button type="button" id="polar-export" class="ghost-btn">Save a copy</button>
+  </div>
+
+  <h3>Marks</h3>
+  <p class="hint" id="marks-note"></p>
+  <div class="table-scroll"><table class="polar" id="marks-table"></table></div>
+
+  <div class="panel-actions"><button type="button" data-close class="primary">Done</button></div>
+</dialog>
+
+<script src="vendor/leaflet.js"></script>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

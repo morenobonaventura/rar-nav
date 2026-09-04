@@ -1,0 +1,5 @@
+# Raw Overpass download (1.5 MB); re-fetch with the curl in tools/build_coast.py
+tools/coastline_raw.json
+
+.DS_Store
+node_modules/
