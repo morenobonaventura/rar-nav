@@ -28,8 +28,7 @@ export function modeLabel(leg) {
 
 /** Mark name, short enough to survive a 393 px screen. */
 export function legLabel(row) {
-  if (row.kind === "island_round") return `${row.island} (${row.side === "port" ? "P" : "S"})`;
-  if (row.kind === "gate") return `${row.name.replace(/^gate \((.*)\)$/, "$1").replace("-", "–")} gate`;
+  if (row.kind === "rounding") return `${row.island} (${row.side === "port" ? "P" : "S"})`;
   return row.name;
 }
 

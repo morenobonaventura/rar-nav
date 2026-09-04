@@ -90,15 +90,43 @@ export class CourseLayer {
 
     displayRows.forEach((row, i) => {
       const active = i === activeIndex;
-      if (row.kind === "island_round") {
-        L.polyline(row.points.map((p) => [p.lat, p.lon]), {
+
+      // A rounding is a run of buoys down one side of the island. Draw each of
+      // them, not a fat arc: they are the things you have to honour.
+      if (row.kind === "rounding") {
+        row.points.forEach((m) =>
+          L.circleMarker([m.lat, m.lon], {
+            radius: active ? 4.5 : 3,
+            color: css("--mark"),
+            weight: 2,
+            fillColor: css("--mark"),
+            fillOpacity: active ? 0.9 : 0.5,
+            interactive: false,
+          }).addTo(this.group)
+        );
+      }
+
+      // A gate is the water between two buoys, so draw the line you sail through.
+      if (row.kind === "gate" && row.gate?.length === 2) {
+        L.polyline(row.gate.map((m) => [m.lat, m.lon]), {
           color: css("--mark"),
-          weight: active ? 4 : 2.5,
-          opacity: active ? 1 : 0.8,
-          lineCap: "round",
+          weight: active ? 4 : 3,
+          opacity: active ? 1 : 0.75,
+          lineCap: "butt",
           interactive: false,
         }).addTo(this.group);
+        row.gate.forEach((m) =>
+          L.circleMarker([m.lat, m.lon], {
+            radius: 4,
+            color: css("--mark"),
+            weight: 2,
+            fillColor: css("--mark"),
+            fillOpacity: 1,
+            interactive: false,
+          }).addTo(this.group)
+        );
       }
+
       const p = row.target;
       const isEnd = row.kind === "start" || row.kind === "finish";
       L.circleMarker([p.lat, p.lon], {
@@ -106,7 +134,7 @@ export class CourseLayer {
         color: isEnd ? css("--boat") : css("--mark"),
         weight: 2.5,
         fillColor: css("--paper"),
-        fillOpacity: 1,
+        fillOpacity: row.kind === "gate" ? 0 : 1,
       })
         .addTo(this.group)
         .on("click", (e) => {
@@ -135,8 +163,8 @@ export class CourseLayer {
 }
 
 const shortName = (row) => {
-  if (row.kind === "island_round") return `${row.island} ${row.side === "port" ? "P" : "S"}`;
-  if (row.kind === "gate") return row.name.replace(/^gate \(/, "").replace(/\)$/, "");
+  if (row.kind === "rounding") return `${row.island} ${row.side === "port" ? "P" : "S"}`;
+  if (row.kind === "gate") return row.name.replace(/ gate$/, "");
   if (row.kind === "finish") return "Finish";
   if (row.kind === "start") return "Start";
   return row.name;
