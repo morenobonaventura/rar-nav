@@ -6,8 +6,8 @@
  * battery cost of leaving this open on deck close to the screen alone.
  */
 
-import { Polar, solveLeg, solveRoute, fmtBearing, fmtDuration, fmtClock, norm360, haversineNm } from "./nav.js";
-import { buildCourse, displayLegs, isOnLand } from "./course.js";
+import { Polar, solveLeg, solveRoute, tackPath, fmtBearing, fmtDuration, fmtClock, norm360, haversineNm } from "./nav.js";
+import { buildCourse, displayLegs, isOnLand, crossesLand } from "./course.js";
 import { createMap, addCoast, CourseLayer, BoatLayer, ProbeLayer, ArrowField } from "./map.js";
 import { Gps, Wake, SAMPLE_MS, WINDOW_MS } from "./gps.js";
 import { sparkline, timeSeries, histogram, stats, dial, dialDirection } from "./charts.js";
@@ -226,9 +226,30 @@ function selectRow(i) {
   const target = state.rows[state.activeIndex]?.target;
   if (target) {
     setProbe({ lat: target.lat, lon: target.lon }, state.rows[state.activeIndex].name);
-    map.panTo([target.lat, target.lon]);
+    frameTrack();
   }
   recompute();
+}
+
+/**
+ * Frame the boat, the mark and both tacks, keeping them clear of the readout
+ * that sits over the top of the map. Only done when a leg is picked from the
+ * list, where the mark may well be off screen — moving the map under someone
+ * who just tapped a point they were already looking at would be rude.
+ */
+function frameTrack() {
+  const from = boatOrStart();
+  if (!state.probe || !from) return;
+  const pts = [[from.lat, from.lon], [state.probe.lat, state.probe.lon]];
+  for (const path of state.probePaths ?? []) {
+    if (path.corner) pts.push([path.corner.lat, path.corner.lon]);
+  }
+  const probeBox = $("probe").hidden ? 0 : $("probe").offsetHeight;
+  map.fitBounds(L.latLngBounds(pts), {
+    paddingTopLeft: [26, probeBox + 26],
+    paddingBottomRight: [26, 26],
+    maxZoom: 13,
+  });
 }
 
 // --- the tapped point ------------------------------------------------------
@@ -249,6 +270,20 @@ function refreshProbe() {
   const leg = solveLeg(from, state.probe, state.wind, state.current, state.polar, state.variation);
   leg.eta = Number.isFinite(leg.hours) ? new Date(Date.now() + leg.hours * 3600e3) : null;
 
+  // The track to sail, and whether either option runs over an island. This is
+  // point-to-point routing: it does not go around anything, it only says when
+  // it would have to.
+  const paths = tackPath(from, state.probe, leg);
+  const blocked = paths.map((path) =>
+    path.points.slice(1).some((p, i) => crossesLand(path.points[i], p, state.coast))
+  );
+  leg.paths = paths;
+  state.probePaths = paths;
+  if (blocked.length && blocked.every(Boolean))
+    leg.warnings.push("Every track to this point crosses land. Pick a mark to route around.");
+  else if (blocked.some(Boolean))
+    leg.warnings.push("One of the two tracks crosses land; take the other side.");
+
   fillProbe(
     { name: $("probe-name"), pos: $("probe-pos"), dist: $("probe-dist"), brgt: $("probe-brgt"),
       brgm: $("probe-brgm"), eta: $("probe-eta"), etaLabel: $("probe-eta-label"), mode: $("probe-mode") },
@@ -258,7 +293,7 @@ function refreshProbe() {
     state.variation
   );
   box.hidden = false;
-  probeLayer.update(boatFix(), state.probe);
+  probeLayer.update(boatFix(), state.probe, paths, blocked);
 }
 
 // --- GPS -------------------------------------------------------------------

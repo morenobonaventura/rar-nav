@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import {
   haversineNm, initialBearing, destinationPoint, angDiff, norm360,
   trueToMagnetic, windOverWater, vec, mag, dirOf, add,
-  Polar, solveCourse, solveLeg, solveRoute, fmtDuration, fmtBearing,
+  Polar, solveCourse, solveLeg, solveRoute, tackPath, fmtDuration, fmtBearing,
 } from "../js/nav.js";
 
 const polarData = JSON.parse(readFileSync(new URL("../data/polar_dufour40.json", import.meta.url)));
@@ -259,6 +259,53 @@ test("solveRoute accumulates distance, time and clock ETAs in order", () => {
   assert.ok(r.legs[1].cumHours > r.legs[0].cumHours, "time accumulates");
   assert.ok(r.legs[1].eta > r.legs[0].eta, "ETAs run forward");
   close(r.legs[1].eta.getTime(), t0 + r.totalHours * 3600e3, 1);
+});
+
+// --- the track to sail -----------------------------------------------------
+
+test("a fetch is drawn as a straight line", () => {
+  const leg = solveLeg(CAPO_ORLANDO, STROMBOLI, { tws: 12, twd: 250 }, NO_CURRENT, polar, 4.1);
+  const paths = tackPath(CAPO_ORLANDO, STROMBOLI, leg);
+  assert.equal(paths.length, 1, "one way to sail a fetch");
+  assert.deepEqual(paths[0].points, [CAPO_ORLANDO, STROMBOLI]);
+  assert.equal(paths[0].tackAfterNm, null, "nothing to turn at");
+});
+
+test("a beat is drawn as one tack, and it lands on the mark", () => {
+  const to = destinationPoint(CAPO_ORLANDO, 0, 12); // 12 nm due north
+  const leg = solveLeg(CAPO_ORLANDO, to, { tws: 12, twd: 0 }, NO_CURRENT, polar, 4.1);
+  assert.equal(leg.mode, "beat");
+  const paths = tackPath(CAPO_ORLANDO, to, leg);
+  assert.equal(paths.length, 2, "either board can be sailed first");
+
+  for (const path of paths) {
+    assert.equal(path.points.length, 3, "start, tack, mark");
+    assert.deepEqual(path.points[2], to, "the track ends exactly on the mark");
+    // Sailing the first board for its share of the time must reach the corner.
+    const run = haversineNm(path.points[0], path.corner);
+    close(run, path.boards[0].sog * path.tackAfterHours, 1e-6, "first board length");
+    // ...and the second board must then bear roughly its own course.
+    const brg = initialBearing(path.corner, to);
+    close(angDiff(brg, path.boards[1].cogTrue), 0, 0.5, "second board holds its course");
+  }
+  // The two corners must lie on opposite sides of the rhumb line.
+  const side = (p) => angDiff(initialBearing(CAPO_ORLANDO, p), leg.bearingTrue);
+  assert.ok(side(paths[0].corner) * side(paths[1].corner) < 0, "one corner each side");
+});
+
+test("the two tack options take exactly the same time", () => {
+  const to = destinationPoint(CAPO_ORLANDO, 20, 15);
+  const leg = solveLeg(CAPO_ORLANDO, to, { tws: 11, twd: 20 }, { drift: 1.2, set: 300 }, polar, 4.1);
+  const paths = tackPath(CAPO_ORLANDO, to, leg);
+  const total = (p) => p.boards[0].fraction * leg.hours + p.boards[1].fraction * leg.hours;
+  close(total(paths[0]), leg.hours, 1e-9);
+  close(total(paths[1]), leg.hours, 1e-9, "order of the boards does not change the ETA");
+});
+
+test("an unreachable mark has no track to draw", () => {
+  const leg = solveLeg(CAPO_ORLANDO, STROMBOLI, { tws: 6, twd: 210 }, { drift: 30, set: 120 }, polar, 4.1);
+  assert.equal(leg.mode, "unreachable");
+  assert.deepEqual(tackPath(CAPO_ORLANDO, STROMBOLI, leg), []);
 });
 
 // --- formatting ------------------------------------------------------------

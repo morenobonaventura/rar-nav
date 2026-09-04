@@ -205,13 +205,20 @@ export class BoatLayer {
   }
 }
 
-/** The line and crosshair for a tapped point. */
+/**
+ * The tapped point, the rhumb line to it, and the track to sail.
+ *
+ * The straight dashed line is the bearing. The solid lines are the boards: one
+ * tack either side, both landing on the mark in the same time, which together
+ * draw the cone you have to stay inside. A track that runs over land is drawn
+ * in the warning colour rather than quietly offered as a route.
+ */
 export class ProbeLayer {
   constructor(map) {
     this.group = L.layerGroup().addTo(map);
   }
 
-  update(from, to) {
+  update(from, to, paths = [], blocked = []) {
     this.group.clearLayers();
     if (!to) return;
     if (from) {
@@ -222,6 +229,28 @@ export class ProbeLayer {
         interactive: false,
       }).addTo(this.group);
     }
+
+    paths.forEach((path, i) => {
+      if (path.points.length < 3) return; // a fetch is already the dashed line
+      const bad = blocked[i];
+      L.polyline(path.points.map((p) => [p.lat, p.lon]), {
+        color: bad ? css("--warn") : css("--wind"),
+        weight: i === 0 ? 3 : 2,
+        opacity: i === 0 ? 0.95 : 0.6,
+        dashArray: bad ? "5 5" : null,
+        lineJoin: "round",
+        interactive: false,
+      }).addTo(this.group);
+
+      L.circleMarker([path.corner.lat, path.corner.lon], {
+        radius: i === 0 ? 5 : 4,
+        color: bad ? css("--warn") : css("--wind"),
+        weight: 2,
+        fillColor: css("--paper"),
+        fillOpacity: 1,
+        interactive: false,
+      }).addTo(this.group);
+    });
     L.marker([to.lat, to.lon], {
       interactive: false,
       icon: L.divIcon({
