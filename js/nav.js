@@ -264,12 +264,19 @@ function maxAlongTrackAtZeroCross(pts, evalHeading) {
       const f = B.c / (B.c - A.c); // fraction of time on A
       const vmc = f * A.a + (1 - f) * B.a;
       if (vmc <= 0) return { mode: "unreachable", vmc, legs: [] };
-      // A genuine two-heading solution: the mark cannot be fetched directly, so
-      // it is sailed in two boards either side of the wind. Deep boards are a
-      // run, close-hauled ones a beat.
+
+      // A genuine two-board solution. It is a beat or a run only when the
+      // boards are on OPPOSITE tacks, because that is what tacking and gybing
+      // mean — you cross the wind between them. Two boards on the SAME tack
+      // means the polar has a dent and the fastest thing is to alternate either
+      // side of it without ever crossing the wind; calling that a run because
+      // the angles happen to average past 90 would be a lie at three in the
+      // morning. A measured polar is convex and this does not arise, but the
+      // polar is editable, so the label must follow the geometry.
+      const crossesTheWind = A.twa * B.twa < 0;
       const deep = (Math.abs(A.twa) + Math.abs(B.twa)) / 2 > 90;
       return {
-        mode: deep ? "run" : "beat",
+        mode: crossesTheWind ? (deep ? "run" : "beat") : "twoangles",
         vmc,
         legs: [
           { ...A, fraction: f },

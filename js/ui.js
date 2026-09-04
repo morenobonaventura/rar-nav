@@ -17,6 +17,7 @@ export function modeLabel(leg) {
   if (leg.mode === "unreachable") return "cannot lay";
   if (leg.mode === "beat") return "beat";
   if (leg.mode === "run") return "run";
+  if (leg.mode === "twoangles") return "two angles";
   const twa = Math.abs(leg.legs[0]?.twa ?? 0);
   if (twa < 60) return "close hauled";
   if (twa < 80) return "close reach";
@@ -107,7 +108,7 @@ export function describe(leg, variation) {
       : "";
     return `${modeLabel(leg)} at TWA ${Math.round(Math.abs(a.twa))}°, ${speed(a)}, ${a.sog.toFixed(1)} kn over ground.${crab}`;
   }
-  const word = leg.mode === "beat" ? "Tack" : "Gybe";
+  const word = leg.mode === "beat" ? "Tack" : leg.mode === "run" ? "Gybe" : "Alternate";
   const pct = Math.round(a.fraction * 100);
   return (
     `${word} between ${fmtBearing(a.headingTrue)}T (${a.tack}, ${speed(a)}) and ` +
