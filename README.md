@@ -22,6 +22,14 @@ After that it runs in airplane mode: everything it needs is cached on the phone.
   the course re-times behind it.
 - **Tap SOG or COG** for the last five minutes, as a time series or a
   distribution.
+- **Position** arms the map: the next tap puts the boat where you tapped. Use it
+  when the GPS has dropped out and you have a position from somewhere else, or
+  to see what a leg will look like from a place you have not reached yet. A
+  placed position overrides the GPS until you tap the status bar to hand control
+  back, and is drawn as a crosshair in a different colour so it can never be
+  mistaken for a fix. SOG and COG read `--` while it is in force, because a pin
+  has no speed. It is not remembered across a reload — a position set by hand
+  yesterday must not still be in force at the start gun.
 - **Wind and tide** are set by dragging the compass dials or typing the numbers.
 - **Night** switches to red-on-black to keep your night vision.
 - **Awake** holds the screen on. It is a toggle, not the default, so the app

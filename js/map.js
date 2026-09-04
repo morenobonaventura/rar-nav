@@ -160,25 +160,39 @@ export class BoatLayer {
       return;
     }
     const latlng = [fix.lat, fix.lon];
-    const heading = fix.cog ?? 0;
-    const known = fix.cog != null;
-    const html = `<svg class="boat-svg" width="34" height="34" viewBox="0 0 34 34"
-        style="transform:rotate(${heading}deg)">
-        <path d="M17 3 L26 29 L17 24 L8 29 Z" fill="${css("--boat")}"
-              stroke="${css("--paper")}" stroke-width="1.6" stroke-linejoin="round"
-              opacity="${known ? 1 : 0.55}"/>
-      </svg>`;
+    const colour = fix.manual ? css("--warn") : css("--boat");
+
+    // A hand-placed position gets a different shape as well as a different
+    // colour: a pin, not a heading arrow, because a pin has no course and
+    // drawing one pointing somewhere would be inventing information.
+    const html = fix.manual
+      ? `<svg width="34" height="34" viewBox="0 0 34 34">
+           <circle cx="17" cy="17" r="6" fill="none" stroke="${colour}" stroke-width="3"/>
+           <circle cx="17" cy="17" r="1.8" fill="${colour}"/>
+           <path d="M17 2v6M17 26v6M2 17h6M26 17h6" stroke="${colour}" stroke-width="2.4"
+                 stroke-linecap="round"/>
+         </svg>`
+      : `<svg width="34" height="34" viewBox="0 0 34 34" style="transform:rotate(${fix.cog ?? 0}deg)">
+           <path d="M17 3 L26 29 L17 24 L8 29 Z" fill="${colour}"
+                 stroke="${css("--paper")}" stroke-width="1.6" stroke-linejoin="round"
+                 opacity="${fix.cog != null ? 1 : 0.55}"/>
+         </svg>`;
+
+    // Accuracy is a real measurement; a placed pin has none, so it gets a
+    // dashed ring at a nominal radius rather than a circle implying precision.
+    const ring = {
+      radius: fix.manual ? 150 : fix.accuracy ?? 20,
+      color: colour,
+      weight: 1,
+      opacity: 0.55,
+      dashArray: fix.manual ? "4 4" : null,
+      fillColor: colour,
+      fillOpacity: fix.manual ? 0 : 0.08,
+      interactive: false,
+    };
 
     if (!this.marker) {
-      this.accuracy = L.circle(latlng, {
-        radius: fix.accuracy ?? 20,
-        color: css("--boat"),
-        weight: 1,
-        opacity: 0.5,
-        fillColor: css("--boat"),
-        fillOpacity: 0.08,
-        interactive: false,
-      }).addTo(this.group);
+      this.accuracy = L.circle(latlng, ring).addTo(this.group);
       this.marker = L.marker(latlng, {
         interactive: false,
         icon: L.divIcon({ className: "boat-icon", html, iconSize: [34, 34], iconAnchor: [17, 17] }),
@@ -186,7 +200,7 @@ export class BoatLayer {
     } else {
       this.marker.setLatLng(latlng);
       this.marker.getElement().innerHTML = html;
-      this.accuracy.setLatLng(latlng).setRadius(fix.accuracy ?? 20);
+      this.accuracy.setLatLng(latlng).setRadius(ring.radius).setStyle(ring);
     }
   }
 }

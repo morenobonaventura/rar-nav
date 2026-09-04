@@ -87,7 +87,8 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   border-bottom: 1px solid var(--rule);
   font-size: 13px;
 }
-.fix { display: flex; align-items: center; gap: 6px; padding: 4px 0; color: var(--ink-soft); }
+.fix { display: flex; align-items: center; gap: 6px; padding: 4px 0; color: var(--ink-soft); min-width: 0; }
+#fix-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dot {
   width: 9px; height: 9px; border-radius: 50%;
   background: var(--ink-soft);
@@ -96,6 +97,10 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .fix[data-quality="good"] .dot { background: var(--boat); box-shadow: 0 0 0 3px color-mix(in srgb, var(--boat) 20%, transparent); }
 .fix[data-quality="poor"] .dot { background: var(--warn); box-shadow: 0 0 0 3px color-mix(in srgb, var(--warn) 20%, transparent); }
 .fix[data-quality="none"] .dot { background: var(--mark); box-shadow: 0 0 0 3px color-mix(in srgb, var(--mark) 20%, transparent); }
+/* A hand-placed position must never read like a satellite fix. */
+.fix[data-quality="manual"] { color: var(--warn); font-weight: 600; }
+.fix[data-quality="manual"] .dot { background: var(--warn); box-shadow: 0 0 0 3px color-mix(in srgb, var(--warn) 22%, transparent); }
+.icon[aria-pressed="true"]#btn-place { background: var(--warn); border-color: var(--warn); }
 
 #clock { margin-left: auto; font-variant-numeric: tabular-nums; letter-spacing: .02em; color: var(--ink-soft); }
 .rail-actions { display: flex; gap: 4px; margin-left: auto; }
