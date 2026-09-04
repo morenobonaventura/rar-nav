@@ -110,10 +110,15 @@ export function describe(leg, variation) {
   }
   const word = leg.mode === "beat" ? "Tack" : leg.mode === "run" ? "Gybe" : "Alternate";
   const pct = Math.round(a.fraction * 100);
+  // Where the two laylines meet, if the track has been worked out.
+  const corner = leg.paths?.[0];
+  const turn = corner?.tackAfterNm
+    ? ` ${word} at ${fmtDistance(corner.tackAfterNm)} (${fmtDuration(corner.tackAfterHours)}) on the ${a.tack} board, or take the other side.`
+    : "";
   return (
     `${word} between ${fmtBearing(a.headingTrue)}T (${a.tack}, ${speed(a)}) and ` +
     `${fmtBearing(b.headingTrue)}T (${b.tack}, ${speed(b)}) — ` +
-    `${pct}% of the time on the first. Made good ${leg.vmc.toFixed(1)} kn.`
+    `${pct}% of the time on the first. Made good ${leg.vmc.toFixed(1)} kn.${turn}`
   );
 }
 

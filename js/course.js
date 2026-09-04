@@ -177,6 +177,27 @@ export function displayLegs(waypoints) {
   return out;
 }
 
+/**
+ * Does a straight track run over land? Sampled along the segment, because the
+ * routing here is point to point and knows nothing about what is in the way.
+ *
+ * Returns the name of what it hits, or null. The sampling step is the honest
+ * limit: a rock narrower than the step can slip between samples, so this is a
+ * warning, not a clearance certificate.
+ */
+export function crossesLand(a, b, coast, stepNm = 0.15) {
+  const total = haversineNm(a, b);
+  if (total === 0) return null;
+  const steps = Math.min(600, Math.max(2, Math.ceil(total / stepNm)));
+  const brg = initialBearing(a, b);
+  for (let i = 1; i < steps; i++) {
+    const p = destinationPoint(a, brg, (total * i) / steps);
+    const hit = isOnLand(p, coast);
+    if (hit) return { at: p, kind: hit, alongNm: (total * i) / steps };
+  }
+  return null;
+}
+
 /** Ray-casting point-in-polygon, for warning that a mark sits on land. */
 export function isOnLand(pt, coastGeoJSON) {
   for (const f of coastGeoJSON.features) {

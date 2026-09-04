@@ -359,6 +359,52 @@ export function solveLeg(from, to, wind, current, polar, variation) {
 }
 
 /**
+ * The track to actually sail, as points to draw on a chart.
+ *
+ * A fetch is a straight line. A beat, a run, or two angles is sailed in two
+ * boards, and the solver already knows their headings and how the time divides
+ * between them — so the shortest way to sail it is ONE tack, at the corner
+ * where the two laylines meet.
+ *
+ * Either board can be sailed first. Both corners land on the mark and both take
+ * exactly the same time, so both are returned: that pair of tracks is the
+ * classic tacking cone, and which side to take is a tactical call (shifts,
+ * tide, traffic, the next mark) that this app does not have the information to
+ * make for you.
+ *
+ * Sailing more than one tack costs nothing in these uniform conditions — the
+ * same two headings for the same total time in any order arrive together — so
+ * the single tack is drawn as the representative case, not as an instruction to
+ * tack exactly once.
+ *
+ * Point to point only: it takes no account of what is in the way. Check the
+ * `crossesLand` flag the caller adds, and use your eyes.
+ */
+export function tackPath(from, to, leg) {
+  if (leg.mode === "unreachable" || !leg.legs.length) return [];
+  if (leg.legs.length === 1) {
+    return [{ points: [from, to], boards: leg.legs, tackAfterNm: null, tackAfterHours: null }];
+  }
+  return [0, 1].map((i) => {
+    const first = leg.legs[i];
+    const second = leg.legs[1 - i];
+    const hours = first.fraction * leg.hours;
+    const runNm = first.sog * hours;
+    // Sail the first board over the ground, then run the second leg straight to
+    // the mark: composing two great circles would land a few metres off and a
+    // track that visibly misses the mark reads as a bug.
+    const corner = destinationPoint(from, first.cogTrue, runNm);
+    return {
+      points: [from, corner, to],
+      corner,
+      boards: [first, second],
+      tackAfterNm: runNm,
+      tackAfterHours: hours,
+    };
+  });
+}
+
+/**
  * Chain legs from `start` through `points`, accumulating distance and clock ETA.
  * Conditions are held constant: this is a "what I see right now" instrument, not
  * a forecast router.
