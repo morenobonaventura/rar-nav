@@ -1,0 +1,11 @@
+{
+  "name": "rar-nav",
+  "version": "1.0.0",
+  "description": "Offline iPhone navigator for the Round Aeolian Race",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "node --test tests/",
+    "serve": "python3 -m http.server 8000"
+  }
+}

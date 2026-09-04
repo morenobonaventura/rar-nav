@@ -1,0 +1,366 @@
+/*
+ * RAR Nav.
+ *
+ * Palette comes from the paper chart, not from app conventions: pale chart blue
+ * for sea, the buff of Italian IIM charts for land, engraved near-black for ink,
+ * and magenta for tidal streams because that is what tidal diamonds are printed
+ * in. Light by default on purpose — a phone cannot outshine the Mediterranean
+ * sun, and dark ink on a light ground holds its contrast where light-on-dark
+ * washes out. Night mode goes red-on-black to keep night vision on a race that
+ * runs through two nights.
+ *
+ * Numbers are the design. One family throughout (the system face, which is SF
+ * Pro on the target phone and has proper tabular figures), sized and tracked so
+ * a reading survives a two-second glance from the helm.
+ */
+
+:root {
+  --sea: #dceaf2;
+  --sea-deep: #c3dbe8;
+  --land: #e8d9b0;
+  --land-edge: #b9a878;
+  --ink: #14202b;
+  --ink-soft: #526474;
+  --rule: #a9bcc8;
+  --paper: #f4f8fa;
+  --wind: #1b6fa8;
+  --tide: #a4248c; /* Admiralty tidal-diamond magenta */
+  --mark: #c8102e;
+  --boat: #0b7a45;
+  --warn: #b25000;
+  --shadow: 0 1px 0 rgba(20, 32, 43, .06), 0 6px 20px rgba(20, 32, 43, .10);
+  --tap: 48px;
+  color-scheme: light;
+}
+
+body.night {
+  --sea: #000;
+  --sea-deep: #0b0403;
+  --land: #2a0f06;
+  --land-edge: #74301a;
+  --ink: #ff5b33;
+  --ink-soft: #a63a1f;
+  --rule: #5c2312;
+  --paper: #120503;
+  --wind: #ff7a4d;
+  --tide: #ff9d7a;
+  --mark: #ff3b1e;
+  --boat: #ff8a5c;
+  --warn: #ffb08c;
+  --shadow: none;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  background: var(--paper);
+  color: var(--ink);
+  font: 400 15px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+:focus-visible { outline: 3px solid var(--wind); outline-offset: 2px; }
+
+/* Status rail --------------------------------------------------------------*/
+
+.rail {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  background: var(--paper);
+  border-bottom: 1px solid var(--rule);
+  font-size: 13px;
+}
+.fix { display: flex; align-items: center; gap: 6px; padding: 4px 0; color: var(--ink-soft); }
+.dot {
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--ink-soft);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ink-soft) 18%, transparent);
+}
+.fix[data-quality="good"] .dot { background: var(--boat); box-shadow: 0 0 0 3px color-mix(in srgb, var(--boat) 20%, transparent); }
+.fix[data-quality="poor"] .dot { background: var(--warn); box-shadow: 0 0 0 3px color-mix(in srgb, var(--warn) 20%, transparent); }
+.fix[data-quality="none"] .dot { background: var(--mark); box-shadow: 0 0 0 3px color-mix(in srgb, var(--mark) 20%, transparent); }
+
+#clock { margin-left: auto; font-variant-numeric: tabular-nums; letter-spacing: .02em; color: var(--ink-soft); }
+.rail-actions { display: flex; gap: 4px; margin-left: auto; }
+#clock + .rail-actions { margin-left: 10px; }
+.icon {
+  padding: 5px 10px;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+.icon[aria-pressed="true"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+
+/* Instrument head ----------------------------------------------------------*/
+
+.head {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  background: var(--paper);
+  border-bottom: 1px solid var(--rule);
+}
+.gauge {
+  position: relative;
+  display: grid;
+  gap: 1px;
+  padding: 7px 14px 4px;
+  text-align: left;
+  min-height: var(--tap);
+}
+.gauge + .gauge { border-left: 1px solid var(--rule); }
+.gauge:active { background: var(--sea); }
+.gauge-label { font-size: 11px; letter-spacing: .08em; color: var(--ink-soft); }
+.gauge-value {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  font-size: 42px;
+  line-height: 1;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.02em;
+}
+.gauge-value .unit { font-size: 14px; font-weight: 400; color: var(--ink-soft); letter-spacing: 0; }
+.spark { width: 100%; height: 20px; display: block; margin-top: 2px; }
+.gauge.stale .gauge-value { color: var(--ink-soft); }
+
+/* Map ----------------------------------------------------------------------*/
+
+/* overflow:hidden matters: the field canvas is sized in pixels from the map's
+   own dimensions, so it would spill over the sheet between a resize and the
+   redraw that follows it. */
+.map-wrap { position: relative; min-height: 0; overflow: hidden; }
+#map { position: absolute; inset: 0; background: var(--sea); }
+.leaflet-container { background: var(--sea); font: inherit; }
+.field { position: absolute; inset: 0; pointer-events: none; transition: opacity .12s; }
+
+.map-buttons {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  z-index: 500;
+  display: grid;
+  gap: 8px;
+}
+.round {
+  width: var(--tap); height: var(--tap);
+  display: grid; place-items: center;
+  border-radius: 50%;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  box-shadow: var(--shadow);
+  color: var(--ink);
+}
+.round[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+
+/* Tapped-point readout -----------------------------------------------------*/
+
+.probe {
+  position: absolute;
+  left: 10px; right: 10px; top: 10px;
+  z-index: 500;
+  padding: 10px 12px 12px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+}
+.probe-close {
+  position: absolute; top: 2px; right: 4px;
+  width: 40px; height: 40px;
+  font-size: 24px; line-height: 1; color: var(--ink-soft);
+}
+.probe-head { display: flex; gap: 8px; align-items: baseline; padding-right: 34px; }
+.probe-head span:first-child { font-weight: 600; }
+.probe-head span:last-child { font-size: 12px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.probe-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 8px; }
+.probe-grid div { display: grid; gap: 1px; }
+.probe-grid b { font-size: 21px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+.probe-grid span { font-size: 10.5px; color: var(--ink-soft); }
+.probe-mode { margin: 8px 0 0; font-size: 12.5px; color: var(--ink-soft); }
+.probe-mode.warn { color: var(--warn); }
+
+/* Bottom sheet -------------------------------------------------------------*/
+
+.sheet {
+  background: var(--paper);
+  border-top: 1px solid var(--rule);
+  border-radius: 14px 14px 0 0;
+  box-shadow: var(--shadow);
+  display: grid;
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  transition: max-height .22s ease;
+  overflow: hidden;
+}
+.sheet[data-state="peek"] { max-height: 246px; }
+.sheet[data-state="open"] { max-height: 64vh; }
+/* The attribution and the placeholder-marks warning matter, but not enough to
+   eat the two leg rows the peek state exists to show. */
+.sheet[data-state="peek"] .disclaimer { display: none; }
+@media (prefers-reduced-motion: reduce) { .sheet { transition: none; } }
+
+.grip { display: grid; place-items: center; height: 22px; }
+.grip span { width: 40px; height: 4px; border-radius: 2px; background: var(--rule); }
+
+.conditions { display: grid; grid-template-columns: 1fr 1fr auto; gap: 1px; background: var(--rule); border-block: 1px solid var(--rule); }
+.cond { background: var(--paper); padding: 7px 12px; text-align: left; min-height: var(--tap); }
+.cond:active { background: var(--sea); }
+.cond-label { display: block; font-size: 11px; color: var(--ink-soft); }
+.cond-value { font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.cond.ghost { display: grid; place-items: center; padding-inline: 16px; font-size: 13px; color: var(--ink-soft); }
+
+.legs-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  padding: 8px 14px 4px; font-size: 12px; color: var(--ink-soft);
+}
+#legs-total { font-variant-numeric: tabular-nums; }
+
+.legs { list-style: none; margin: 0; padding: 0 0 4px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.leg {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  column-gap: 10px;
+  row-gap: 1px;
+  align-items: baseline;
+  padding: 8px 14px;
+  border-top: 1px solid color-mix(in srgb, var(--rule) 45%, transparent);
+  width: 100%;
+  text-align: left;
+  min-height: var(--tap);
+}
+.leg:active { background: var(--sea); }
+.leg[aria-current="true"] { background: color-mix(in srgb, var(--wind) 9%, transparent); box-shadow: inset 3px 0 0 var(--wind); }
+
+.leg-n { grid-row: 1 / span 2; font-size: 12px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.leg-name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.leg-figures { display: flex; gap: 12px; align-items: baseline; font-variant-numeric: tabular-nums; }
+.leg-dist { font-size: 14px; color: var(--ink-soft); }
+.leg-eta { font-size: 15px; font-weight: 600; min-width: 58px; text-align: right; }
+.leg.unreachable .leg-eta { color: var(--mark); }
+
+.leg-sub { font-size: 11.5px; color: var(--ink-soft); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.leg-sub em { font-style: normal; font-weight: 600; }
+.leg-sub.beat em { color: var(--wind); }
+.leg-sub.run em { color: var(--tide); }
+.leg-sub.unreachable em { color: var(--mark); }
+.leg-clock { font-size: 11.5px; color: var(--ink-soft); font-variant-numeric: tabular-nums; text-align: right; }
+
+.disclaimer { margin: 0; padding: 8px 14px calc(10px + env(safe-area-inset-bottom)); font-size: 11px; color: var(--ink-soft); border-top: 1px solid var(--rule); }
+
+/* Panels -------------------------------------------------------------------*/
+
+.scrim { position: fixed; inset: 0; background: rgba(20, 32, 43, .38); z-index: 900; }
+body.night .scrim { background: rgba(0, 0, 0, .7); }
+
+.panel {
+  position: fixed;
+  inset: auto 0 0 0;
+  z-index: 1000;
+  width: 100%;
+  max-width: 560px;
+  margin: 0 auto;
+  max-height: 88vh;
+  overflow-y: auto;
+  padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
+  border: 0;
+  border-radius: 16px 16px 0 0;
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+}
+.panel::backdrop { background: rgba(20, 32, 43, .38); }
+.panel h2 { margin: 0 0 4px; font-size: 19px; }
+.panel h3 { margin: 18px 0 6px; font-size: 13px; letter-spacing: .04em; color: var(--ink-soft); font-weight: 600; }
+.hint { margin: 4px 0 10px; font-size: 12.5px; line-height: 1.5; color: var(--ink-soft); }
+.hint.warn { color: var(--warn); }
+
+.panel label, .row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 0; font-size: 14px;
+}
+.panel label input, .row input {
+  margin-left: auto;
+  width: 96px;
+  padding: 9px 10px;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--ink);
+  background: var(--sea);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+}
+.panel label span, .row span { width: 22px; font-size: 12px; color: var(--ink-soft); }
+
+.dial-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.dial-block h3 { margin-top: 0; }
+.dial { width: 100%; height: auto; aspect-ratio: 1; touch-action: none; }
+
+.seg { display: flex; gap: 1px; margin: 6px 0 10px; background: var(--rule); border: 1px solid var(--rule); border-radius: 9px; overflow: hidden; }
+.seg button { flex: 1; padding: 10px 8px; font-size: 13px; background: var(--paper); color: var(--ink-soft); min-height: var(--tap); }
+.seg button[aria-selected="true"] { background: var(--ink); color: var(--paper); font-weight: 600; }
+
+#hist-canvas { width: 100%; height: auto; aspect-ratio: 2 / 1; }
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 10px; }
+.stats div { display: grid; gap: 1px; }
+.stats b { font-size: 19px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.stats span { font-size: 10.5px; color: var(--ink-soft); }
+
+.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 0 -16px; padding: 0 16px; }
+.polar { border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+.polar th, .polar td { border: 1px solid var(--rule); padding: 0; text-align: center; }
+.polar th { padding: 5px 7px; font-weight: 600; font-size: 11.5px; color: var(--ink-soft); background: var(--sea); position: sticky; left: 0; }
+.polar thead th { position: static; }
+.polar input {
+  width: 54px; padding: 7px 4px;
+  font: inherit; font-variant-numeric: tabular-nums; text-align: center;
+  color: var(--ink); background: transparent; border: 0;
+}
+.polar td.estimated { background: color-mix(in srgb, var(--warn) 13%, transparent); }
+.polar td.estimated input { color: var(--warn); }
+.polar input:focus { background: var(--sea); outline: 2px solid var(--wind); outline-offset: -2px; }
+
+.panel-actions { display: flex; gap: 8px; margin-top: 16px; }
+.panel-actions.spread { margin-top: 8px; }
+.panel-actions button {
+  flex: 1; min-height: var(--tap); padding: 12px;
+  border-radius: 10px; font-size: 15px; font-weight: 600;
+}
+.primary { background: var(--ink); color: var(--paper); }
+.ghost-btn { border: 1px solid var(--rule); color: var(--ink-soft); font-weight: 400; font-size: 13px; }
+
+/* Map furniture ------------------------------------------------------------*/
+
+.boat-icon svg { display: block; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .35)); }
+.mark-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink);
+  text-shadow: 0 0 3px var(--sea), 0 0 3px var(--sea), 0 0 3px var(--sea);
+  white-space: nowrap;
+}
+.leaflet-control-attribution {
+  background: color-mix(in srgb, var(--paper) 82%, transparent) !important;
+  color: var(--ink-soft) !important;
+  font-size: 10px !important;
+}
+.leaflet-control-attribution a { color: var(--ink-soft) !important; }
+.leaflet-bar a { background: var(--paper); color: var(--ink); border-bottom-color: var(--rule); }
