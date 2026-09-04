@@ -380,12 +380,12 @@ export function solveLeg(from, to, wind, current, polar, variation) {
  * Point to point only: it takes no account of what is in the way. Check the
  * `crossesLand` flag the caller adds, and use your eyes.
  */
-export function tackPath(from, to, leg) {
+export function tackPath(from, to, leg, currentCog = null) {
   if (leg.mode === "unreachable" || !leg.legs.length) return [];
   if (leg.legs.length === 1) {
     return [{ points: [from, to], boards: leg.legs, tackAfterNm: null, tackAfterHours: null }];
   }
-  return [0, 1].map((i) => {
+  const paths = [0, 1].map((i) => {
     const first = leg.legs[i];
     const second = leg.legs[1 - i];
     const hours = first.fraction * leg.hours;
@@ -402,6 +402,16 @@ export function tackPath(from, to, leg) {
       tackAfterHours: hours,
     };
   });
+
+  // Order them so one is clearly the recommendation and the other the
+  // alternative. If the boat is already sailing, stay on the board it is
+  // nearest to — do not tack now when you do not have to. Otherwise lead with
+  // the longer first board, which keeps your options open for longer.
+  const score = (p) =>
+    currentCog == null
+      ? p.tackAfterNm
+      : 180 - Math.abs(angDiff(p.boards[0].cogTrue, currentCog));
+  return score(paths[1]) > score(paths[0]) ? [paths[1], paths[0]] : paths;
 }
 
 /**

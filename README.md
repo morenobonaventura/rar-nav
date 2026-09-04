@@ -84,9 +84,18 @@ and a rock narrower than the 0.15 nm sampling step can slip between samples.
 Routing that actually navigates around the islands and takes the marks in order
 is the next piece of work.
 
-Sailing more than one tack costs nothing here: the same two headings for the
-same total time arrive together whatever order you sail them in. The single tack
-is drawn as the representative case, not as an instruction to tack exactly once.
+**How many tacks is not a question this model can answer.** Sailing the same two
+headings for the same total time arrives at the same moment however you chop it
+up, so one tack and twenty are identical here. They are not identical on the
+water: every manoeuvre costs a boat length or three, which argues for fewer —
+and tacking on the headers gains far more than that, which argues for many. The
+app knows nothing about either, so it draws one tack as the simplest case rather
+than as a recommendation.
+
+**The drawn corner is the layline, which is a limit rather than a plan.** Sailing
+out to it leaves you with no options and turns any overstand into pure loss; the
+tactically sound move is normally to stay inside it and work up the middle. The
+readout says "tack before it, not at it" for that reason.
 
 ## Data, and how far to trust it
 

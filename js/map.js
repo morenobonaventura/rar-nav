@@ -230,22 +230,28 @@ export class ProbeLayer {
       }).addTo(this.group);
     }
 
+    // The two options share a start and an end, so drawn with equal weight they
+    // close into a box and read as one shape rather than as a choice. The
+    // recommendation is therefore drawn as a route and the alternative as a
+    // faint hint of the other side.
     paths.forEach((path, i) => {
       if (path.points.length < 3) return; // a fetch is already the dashed line
       const bad = blocked[i];
+      const primary = i === 0;
       L.polyline(path.points.map((p) => [p.lat, p.lon]), {
         color: bad ? css("--warn") : css("--wind"),
-        weight: i === 0 ? 3 : 2,
-        opacity: i === 0 ? 0.95 : 0.6,
-        dashArray: bad ? "5 5" : null,
+        weight: primary ? 3.5 : 1.5,
+        opacity: bad ? 0.9 : primary ? 1 : 0.4,
+        dashArray: bad ? "5 5" : primary ? null : "2 6",
         lineJoin: "round",
         interactive: false,
       }).addTo(this.group);
 
+      if (!primary) return; // only the route you would sail gets a tack mark
       L.circleMarker([path.corner.lat, path.corner.lon], {
-        radius: i === 0 ? 5 : 4,
+        radius: 5,
         color: bad ? css("--warn") : css("--wind"),
-        weight: 2,
+        weight: 2.5,
         fillColor: css("--paper"),
         fillOpacity: 1,
         interactive: false,

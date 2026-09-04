@@ -273,7 +273,7 @@ function refreshProbe() {
   // The track to sail, and whether either option runs over an island. This is
   // point-to-point routing: it does not go around anything, it only says when
   // it would have to.
-  const paths = tackPath(from, state.probe, leg);
+  const paths = tackPath(from, state.probe, leg, boatFix()?.cog ?? null);
   const blocked = paths.map((path) =>
     path.points.slice(1).some((p, i) => crossesLand(path.points[i], p, state.coast))
   );
