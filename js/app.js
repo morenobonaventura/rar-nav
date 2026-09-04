@@ -32,6 +32,13 @@ const state = {
   current: { drift: 0.4, set: 40 },
   activeIndex: 0,
   probe: null,
+  // A hand-placed position, used when the GPS has dropped out or when you want
+  // to see what a leg looks like from somewhere you are not yet. It overrides
+  // the GPS until cleared, and is labelled everywhere so it can never be
+  // mistaken for a real fix. Deliberately not persisted: a position set by
+  // hand yesterday must not quietly still be in force at the start gun.
+  manual: null,
+  placing: false,
   night: false,
   historyField: "sog",
   historyView: "series",
@@ -62,8 +69,16 @@ async function boot() {
   boatLayer = new BoatLayer(map);
   probeLayer = new ProbeLayer(map);
   field = new ArrowField(map, $("field"));
-  courseLayer.onSelect = (i) => selectRow(i);
-  map.on("click", (e) => setProbe({ lat: e.latlng.lat, lon: e.latlng.lng }));
+  courseLayer.onSelect = (i) => {
+    if (!state.placing) return selectRow(i);
+    const t = state.rows[i]?.target;
+    if (t) placeBoat({ lat: t.lat, lon: t.lon }); // marks swallow the map click
+  };
+  map.on("click", (e) => {
+    const at = { lat: e.latlng.lat, lon: e.latlng.lng };
+    if (state.placing) placeBoat(at);
+    else setProbe(at);
+  });
   map.on("zoomend", () => courseLayer.refresh());
 
   wireUi();
@@ -101,6 +116,44 @@ async function boot() {
   };
 }
 
+// --- where the boat is -----------------------------------------------------
+
+/**
+ * The one place anything asks where the boat is. A hand-placed position wins
+ * over the GPS until it is cleared; nothing else in the app reads `gps.fix`
+ * directly, so a manual position cannot be half-applied.
+ *
+ * A placed position carries no speed or course — the app has no way to know
+ * how fast a pin is moving — so those read as unknown rather than as stale
+ * satellite data.
+ */
+function boatFix() {
+  if (state.manual) return { ...state.manual, sog: null, cog: null, accuracy: null, manual: true };
+  return gps.fix;
+}
+
+/** Fall back to the start line when there is no position at all. */
+const boatOrStart = () =>
+  boatFix() ?? { lat: state.course.start_finish.lat, lon: state.course.start_finish.lon };
+
+function armPlacing(on) {
+  state.placing = on;
+  $("btn-place").setAttribute("aria-pressed", String(on));
+  map.getContainer().style.cursor = on ? "crosshair" : "";
+  onGps();
+}
+
+function placeBoat(at) {
+  state.manual = at;
+  armPlacing(false); // refreshes the chip, gauges, marker and route via onGps
+}
+
+/** Hand control back to the satellites. */
+function clearManual() {
+  state.manual = null;
+  onGps();
+}
+
 // --- course ----------------------------------------------------------------
 
 function rebuildCourse() {
@@ -124,7 +177,7 @@ function rebuildCourse() {
  * no fix yet), then fold each rounding arc's waypoints back into one row.
  */
 function recompute() {
-  const from = gps.fix ?? { lat: state.course.start_finish.lat, lon: state.course.start_finish.lon };
+  const from = boatOrStart();
   const firstWp = state.rows[state.activeIndex]?.points[0];
   const startIdx = firstWp ? state.waypoints.indexOf(firstWp) : 0;
   const remaining = state.waypoints.slice(startIdx);
@@ -160,7 +213,7 @@ function recompute() {
   $("legs-total").textContent = rows.length
     ? `${solved.totalNm.toFixed(1)} nm · ${fmtDuration(solved.totalHours)}`
     : "";
-  $("legs-title").textContent = gps.fix ? "Legs from the boat" : "Legs from the start";
+  $("legs-title").textContent = boatFix() ? "Legs from the boat" : "Legs from the start";
 
   courseLayer.draw(state.waypoints, state.rows, state.activeIndex);
   field.set(state.wind, state.current);
@@ -192,7 +245,7 @@ function refreshProbe() {
     probeLayer.update(null, null);
     return;
   }
-  const from = gps.fix ?? { lat: state.course.start_finish.lat, lon: state.course.start_finish.lon };
+  const from = boatOrStart();
   const leg = solveLeg(from, state.probe, state.wind, state.current, state.polar, state.variation);
   leg.eta = Number.isFinite(leg.hours) ? new Date(Date.now() + leg.hours * 3600e3) : null;
 
@@ -205,21 +258,30 @@ function refreshProbe() {
     state.variation
   );
   box.hidden = false;
-  probeLayer.update(gps.fix, state.probe);
+  probeLayer.update(boatFix(), state.probe);
 }
 
 // --- GPS -------------------------------------------------------------------
 
 function onGps() {
-  const fix = gps.fix;
+  const fix = boatFix();
   const fixEl = $("fix");
-  if (gps.error) {
+  if (state.placing) {
+    fixEl.dataset.quality = "manual";
+    $("fix-text").textContent = "Tap the map to place the boat";
+  } else if (state.manual) {
+    fixEl.dataset.quality = "manual";
+    $("fix-text").textContent = "Position set by hand — tap for GPS";
+  } else if (gps.error) {
     fixEl.dataset.quality = "none";
     $("fix-text").textContent = gps.error;
   } else if (fix) {
     const acc = Math.round(fix.accuracy ?? 0);
     fixEl.dataset.quality = acc <= 15 ? "good" : acc <= 50 ? "poor" : "none";
     $("fix-text").textContent = `GPS ±${acc} m${fix.derived ? ", speed from fixes" : ""}`;
+  } else {
+    fixEl.dataset.quality = "none";
+    $("fix-text").textContent = "Waiting for a GPS fix";
   }
 
   const sogEl = $("sog");
@@ -316,9 +378,18 @@ function closePanels() {
 function wireUi() {
   $("gauge-sog").addEventListener("click", () => openHistory("sog"));
   $("gauge-cog").addEventListener("click", () => openHistory("cog"));
+
+  // Arm, then the next tap on the map places the boat. Tapping the fix chip
+  // hands control back to the satellites.
+  $("btn-place").addEventListener("click", () => armPlacing(!state.placing));
+  $("fix").addEventListener("click", () => {
+    if (state.placing) armPlacing(false);
+    else if (state.manual) clearManual();
+  });
   $("probe-close").addEventListener("click", () => setProbe(null));
   $("btn-centre").addEventListener("click", () => {
-    if (gps.fix) map.setView([gps.fix.lat, gps.fix.lon], Math.max(map.getZoom(), 12));
+    const fix = boatFix();
+    if (fix) map.setView([fix.lat, fix.lon], Math.max(map.getZoom(), 12));
   });
   $("btn-course").addEventListener("click", () => {
     const b = L.latLngBounds(state.waypoints.map((w) => [w.lat, w.lon]));
@@ -499,7 +570,7 @@ function setNight(on) {
     color: getComputedStyle(document.body).getPropertyValue("--land-edge").trim(),
   });
   rebuildCourse();
-  boatLayer.update(gps.fix);
+  boatLayer.update(boatFix());
   drawSparklines();
   if ($("panel-history").open) drawHistory();
   if ($("panel-conditions").open) drawDials();
