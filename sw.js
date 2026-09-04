@@ -8,7 +8,7 @@
  *
  * Bump CACHE when any file below changes, or phones will keep the old copy.
  */
-const CACHE = "rarnav-v2";
+const CACHE = "rarnav-v3";
 
 const ASSETS = [
   "./",
