@@ -155,6 +155,31 @@ test("cross current is crabbed into so the TRACK still lays the mark", () => {
   close(s.legs[0].cog, 90, 0.5, "but the resulting course over ground is the bearing");
 });
 
+test("two boards on the SAME tack are not called a beat or a run", () => {
+  // A beat or a run means crossing the wind between the boards. Punch a dent
+  // into the polar at TWA 90 and the fastest way to make a beam reach good is
+  // to alternate either side of the dent — TWA 75 and TWA 110, both on the
+  // same tack, never crossing the wind. Averaging those angles gives 92, so a
+  // naive "past 90 means running" test would call this a run. It is not one.
+  const dented = Polar.fromJSON(JSON.parse(JSON.stringify(polarData)));
+  const j = polarData.twa.indexOf(90);
+  dented.table.forEach((row) => (row[j] = 3.0));
+
+  const s = solveCourse(40, { tws: 12, twd: 310 }, NO_CURRENT, dented);
+  assert.equal(s.legs.length, 2, "the dent forces two boards");
+  assert.ok(s.legs[0].twa * s.legs[1].twa > 0, "both boards are on the same tack");
+  assert.equal(s.mode, "twoangles", `same-tack boards must not be called a ${s.mode}`);
+  assert.ok(s.vmc > dented.speed(90, 12), "and alternating beats sailing into the dent");
+});
+
+test("a beat and a run always put the boards on opposite tacks", () => {
+  for (const [bearing, expected] of [[0, "beat"], [180, "run"]]) {
+    const s = solveCourse(bearing, { tws: 12, twd: 0 }, NO_CURRENT, polar);
+    assert.equal(s.mode, expected);
+    assert.ok(s.legs[0].twa * s.legs[1].twa < 0, `${expected} must cross the wind`);
+  }
+});
+
 test("a foul current strong enough to sweep you sideways is unreachable", () => {
   const s = solveCourse(0, { tws: 6, twd: 180 }, { drift: 30, set: 90 }, polar);
   assert.equal(s.mode, "unreachable");
