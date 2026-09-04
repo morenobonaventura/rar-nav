@@ -1,115 +1,340 @@
 {
-  "race": {
-    "name": "Round Aeolian Race 2026",
-    "organiser": "Yacht Club Capo d'Orlando (YCCO)",
-    "dates": "2026-09-25 to 2026-09-27",
-    "distance_nm": {
-      "full": 140,
-      "cruising": 65
-    }
+ "race": {
+  "name": "Round Aeolian Race 2026",
+  "organiser": "Yacht Club Capo d'Orlando (YCCO)",
+  "dates": "2026-09-25 to 2026-09-27",
+  "distance_nm": {
+   "full": 140,
+   "cruising": 65
+  }
+ },
+ "magnetic_variation_deg": 4.1,
+ "variation_note": "WMM-2025 @ 2026-09-25, east positive. Magnetic = True - variation.",
+ "bbox": {
+  "lat_min": 37.85,
+  "lat_max": 39.05,
+  "lon_min": 14.15,
+  "lon_max": 15.55
+ },
+ "start_finish": {
+  "name": "Capo d'Orlando",
+  "lat": 38.1667,
+  "lon": 14.7333
+ },
+ "islands": [
+  {
+   "name": "Vulcano",
+   "lat": 38.4041,
+   "lon": 14.9628,
+   "radius_nm": 2.2
   },
-  "magnetic_variation_deg": 4.1,
-  "variation_note": "WMM-2025 @ 2026-09-25, east positive. Magnetic = True - variation.",
-  "bbox": {
-    "lat_min": 37.85,
-    "lat_max": 39.05,
-    "lon_min": 14.15,
-    "lon_max": 15.55
+  {
+   "name": "Lipari",
+   "lat": 38.4667,
+   "lon": 14.95,
+   "radius_nm": 3.2
   },
-  "start_finish": {
-    "name": "Capo d'Orlando",
-    "lat": 38.1667,
-    "lon": 14.7333
+  {
+   "name": "Salina",
+   "lat": 38.5667,
+   "lon": 14.85,
+   "radius_nm": 3.0
   },
-  "islands": [
-    {
-      "name": "Vulcano",
-      "lat": 38.4041,
-      "lon": 14.9628,
-      "radius_nm": 2.2
-    },
-    {
-      "name": "Lipari",
-      "lat": 38.4667,
-      "lon": 14.95,
-      "radius_nm": 3.2
-    },
-    {
-      "name": "Salina",
-      "lat": 38.5667,
-      "lon": 14.85,
-      "radius_nm": 3.0
-    },
-    {
-      "name": "Panarea",
-      "lat": 38.6333,
-      "lon": 15.0667,
-      "radius_nm": 1.3
-    },
-    {
-      "name": "Stromboli",
-      "lat": 38.7889,
-      "lon": 15.2133,
-      "radius_nm": 1.5
-    },
-    {
-      "name": "Filicudi",
-      "lat": 38.5667,
-      "lon": 14.5667,
-      "radius_nm": 1.8
-    },
-    {
-      "name": "Alicudi",
-      "lat": 38.545,
-      "lon": 14.36,
-      "radius_nm": 1.4
-    }
-  ],
-  "sequence_clockwise": [
-    {
-      "island": "Alicudi",
-      "side": "starboard"
-    },
-    {
-      "island": "Filicudi",
-      "side": "starboard"
-    },
-    {
-      "gate": [
-        "Salina",
-        "Lipari"
-      ]
-    },
-    {
-      "island": "Stromboli",
-      "side": "starboard"
-    },
-    {
-      "gate": [
-        "Vulcano",
-        "Lipari"
-      ]
-    }
-  ],
-  "cruising_clockwise": [
-    {
-      "gate": [
-        "Salina",
-        "Lipari"
-      ]
-    },
-    {
-      "gate": [
-        "Vulcano",
-        "Lipari"
-      ]
-    }
-  ],
-  "rounding": {
-    "margin_nm": 1.5,
-    "arc_step_deg": 45.0,
-    "min_sweep_deg": 15.0
+  {
+   "name": "Panarea",
+   "lat": 38.6333,
+   "lon": 15.0667,
+   "radius_nm": 1.3
   },
-  "provenance": "PLACEHOLDER GEOMETRY, NOT OFFICIAL MARKS. Island positions are geographic centroids and gate points their midpoints; radii are rough half-lengths plus margin. The course SEQUENCE (Alicudi, Filicudi, Salina/Lipari gate, Stromboli, Vulcano/Lipari gate) was confirmed by a sailor of this race, but Stromboli's clockwise side is inferred by mirror symmetry. Replace every coordinate from the official Sailing Instructions before racing.",
-  "source": "../sailing_routing/RAR/configs/rar2026.yaml"
+  {
+   "name": "Stromboli",
+   "lat": 38.7889,
+   "lon": 15.2133,
+   "radius_nm": 1.5
+  },
+  {
+   "name": "Filicudi",
+   "lat": 38.5667,
+   "lon": 14.5667,
+   "radius_nm": 1.8
+  },
+  {
+   "name": "Alicudi",
+   "lat": 38.545,
+   "lon": 14.36,
+   "radius_nm": 1.4
+  }
+ ],
+ "clearance_m": 300.0,
+ "gate_clearance_m": 100.0,
+ "sequence_clockwise": [
+  {
+   "type": "rounding",
+   "island": "Alicudi",
+   "side": "starboard",
+   "marks": [
+    {
+     "name": "Alicudi SE",
+     "lat": 38.53859,
+     "lon": 14.36637,
+     "side": "starboard",
+     "island": "Alicudi"
+    },
+    {
+     "name": "Alicudi S",
+     "lat": 38.52889,
+     "lon": 14.35819,
+     "side": "starboard",
+     "island": "Alicudi"
+    },
+    {
+     "name": "Alicudi SW",
+     "lat": 38.53116,
+     "lon": 14.34041,
+     "side": "starboard",
+     "island": "Alicudi"
+    },
+    {
+     "name": "Alicudi W",
+     "lat": 38.54526,
+     "lon": 14.33585,
+     "side": "starboard",
+     "island": "Alicudi"
+    },
+    {
+     "name": "Alicudi NW",
+     "lat": 38.55553,
+     "lon": 14.34589,
+     "side": "starboard",
+     "island": "Alicudi"
+    },
+    {
+     "name": "Alicudi N",
+     "lat": 38.55716,
+     "lon": 14.35906,
+     "side": "starboard",
+     "island": "Alicudi"
+    },
+    {
+     "name": "Alicudi NE",
+     "lat": 38.55287,
+     "lon": 14.36827,
+     "side": "starboard",
+     "island": "Alicudi"
+    },
+    {
+     "name": "Alicudi E",
+     "lat": 38.54599,
+     "lon": 14.36936,
+     "side": "starboard",
+     "island": "Alicudi"
+    }
+   ]
+  },
+  {
+   "type": "rounding",
+   "island": "Filicudi",
+   "side": "starboard",
+   "marks": [
+    {
+     "name": "Filicudi W",
+     "lat": 38.56454,
+     "lon": 14.54596,
+     "side": "starboard",
+     "island": "Filicudi"
+    },
+    {
+     "name": "Filicudi WNW",
+     "lat": 38.57148,
+     "lon": 14.53854,
+     "side": "starboard",
+     "island": "Filicudi"
+    },
+    {
+     "name": "Filicudi WNW",
+     "lat": 38.58111,
+     "lon": 14.5373,
+     "side": "starboard",
+     "island": "Filicudi"
+    },
+    {
+     "name": "Filicudi NW",
+     "lat": 38.58745,
+     "lon": 14.5459,
+     "side": "starboard",
+     "island": "Filicudi"
+    },
+    {
+     "name": "Filicudi NNW",
+     "lat": 38.58737,
+     "lon": 14.55798,
+     "side": "starboard",
+     "island": "Filicudi"
+    },
+    {
+     "name": "Filicudi NNE",
+     "lat": 38.58426,
+     "lon": 14.57551,
+     "side": "starboard",
+     "island": "Filicudi"
+    },
+    {
+     "name": "Filicudi ENE",
+     "lat": 38.57432,
+     "lon": 14.58434,
+     "side": "starboard",
+     "island": "Filicudi"
+    },
+    {
+     "name": "Filicudi E",
+     "lat": 38.56426,
+     "lon": 14.58316,
+     "side": "starboard",
+     "island": "Filicudi"
+    }
+   ]
+  },
+  {
+   "type": "gate",
+   "islands": [
+    "Salina",
+    "Lipari"
+   ],
+   "marks": [
+    {
+     "name": "Salina side",
+     "lat": 38.54725,
+     "lon": 14.86948,
+     "island": "Salina"
+    },
+    {
+     "name": "Lipari side",
+     "lat": 38.51223,
+     "lon": 14.90455,
+     "island": "Lipari"
+    }
+   ]
+  },
+  {
+   "type": "rounding",
+   "island": "Stromboli",
+   "side": "starboard",
+   "marks": [
+    {
+     "name": "Stromboli SW",
+     "lat": 38.77737,
+     "lon": 15.1987,
+     "side": "starboard",
+     "island": "Stromboli"
+    },
+    {
+     "name": "Stromboli W",
+     "lat": 38.78803,
+     "lon": 15.18501,
+     "side": "starboard",
+     "island": "Stromboli"
+    },
+    {
+     "name": "Stromboli WNW",
+     "lat": 38.79628,
+     "lon": 15.1863,
+     "side": "starboard",
+     "island": "Stromboli"
+    },
+    {
+     "name": "Stromboli NW",
+     "lat": 38.80051,
+     "lon": 15.19609,
+     "side": "starboard",
+     "island": "Stromboli"
+    },
+    {
+     "name": "Stromboli N",
+     "lat": 38.81044,
+     "lon": 15.2104,
+     "side": "starboard",
+     "island": "Stromboli"
+    },
+    {
+     "name": "Stromboli NNE",
+     "lat": 38.81442,
+     "lon": 15.22243,
+     "side": "starboard",
+     "island": "Stromboli"
+    },
+    {
+     "name": "Stromboli NE",
+     "lat": 38.81102,
+     "lon": 15.2348,
+     "side": "starboard",
+     "island": "Stromboli"
+    },
+    {
+     "name": "Stromboli ENE",
+     "lat": 38.80439,
+     "lon": 15.24599,
+     "side": "starboard",
+     "island": "Stromboli"
+    },
+    {
+     "name": "Stromboli E",
+     "lat": 38.79217,
+     "lon": 15.23779,
+     "side": "starboard",
+     "island": "Stromboli"
+    },
+    {
+     "name": "Stromboli ESE",
+     "lat": 38.77947,
+     "lon": 15.23164,
+     "side": "starboard",
+     "island": "Stromboli"
+    },
+    {
+     "name": "Stromboli SSE",
+     "lat": 38.77078,
+     "lon": 15.21887,
+     "side": "starboard",
+     "island": "Stromboli"
+    },
+    {
+     "name": "Stromboli S",
+     "lat": 38.77032,
+     "lon": 15.20991,
+     "side": "starboard",
+     "island": "Stromboli"
+    },
+    {
+     "name": "Stromboli SSW",
+     "lat": 38.7746,
+     "lon": 15.20285,
+     "side": "starboard",
+     "island": "Stromboli"
+    }
+   ]
+  },
+  {
+   "type": "gate",
+   "islands": [
+    "Vulcano",
+    "Lipari"
+   ],
+   "marks": [
+    {
+     "name": "Vulcano side",
+     "lat": 38.43216,
+     "lon": 14.95707,
+     "island": "Vulcano"
+    },
+    {
+     "name": "Lipari side",
+     "lat": 38.43866,
+     "lon": 14.95574,
+     "island": "Lipari"
+    }
+   ]
+  }
+ ],
+ "provenance": "PLACEHOLDER MARKS, NOT THE OFFICIAL COURSE. Positions are seeded 300 m off the real OSM coastline on the side the course requires - close enough to be sane, but invented. The course SEQUENCE (Alicudi, Filicudi, Salina/Lipari gate, Stromboli, Vulcano/Lipari gate) was confirmed by a sailor of this race; Stromboli's clockwise side is inferred by mirror symmetry. Replace every coordinate from the Sailing Instructions.",
+ "source": "../sailing_routing/RAR/configs/rar2026.yaml"
 }

@@ -7,7 +7,7 @@
  */
 
 import { Polar, solveLeg, solveRoute, tackPath, fmtBearing, fmtDuration, fmtClock, norm360, haversineNm } from "./nav.js";
-import { buildCourse, displayLegs, isOnLand, crossesLand } from "./course.js";
+import { buildCourse, displayLegs, isOnLand, crossesLand, courseLandConflicts, gateWidthNm } from "./course.js";
 import { createMap, addCoast, CourseLayer, BoatLayer, ProbeLayer, ArrowField } from "./map.js";
 import { Gps, Wake, SAMPLE_MS, WINDOW_MS } from "./gps.js";
 import { sparkline, timeSeries, histogram, stats, dial, dialDirection } from "./charts.js";
@@ -26,7 +26,6 @@ const state = {
   rows: [],
   route: null,
   direction: "clockwise",
-  variant: "full",
   variation: 4.1,
   wind: { tws: 12, twd: 310 },
   current: { drift: 0.4, set: 40 },
@@ -157,17 +156,24 @@ function clearManual() {
 // --- course ----------------------------------------------------------------
 
 function rebuildCourse() {
-  state.waypoints = buildCourse(state.course, state.direction, state.variant);
+  state.waypoints = buildCourse(state.course, state.direction);
   // The start is where you already are, not somewhere to sail to, so it is not
   // a leg. The finish sits on the same spot and keeps the marker.
   state.rows = displayLegs(state.waypoints).filter((r) => r.kind !== "start");
   state.activeIndex = Math.min(state.activeIndex, state.rows.length - 1);
 
   const onLand = state.waypoints.filter((w) => isOnLand(w, state.coast));
-  $("marks-note").textContent = onLand.length
-    ? `${onLand.length} mark(s) fall on land: ${onLand.map((w) => w.name).join(", ")}. Check the coordinates.`
-    : state.course.provenance;
-  $("marks-note").classList.toggle("warn", onLand.length > 0);
+  const conflicts = courseLandConflicts(state.waypoints, state.coast);
+  const problems = [];
+  if (onLand.length)
+    problems.push(`${onLand.length} mark(s) sit on land: ${onLand.map((w) => w.name).join(", ")}.`);
+  if (conflicts.length)
+    problems.push(
+      `${conflicts.length} leg(s) run over land sailed straight, first ` +
+      `${conflicts[0].from.name} → ${conflicts[0].to.name}. Add a mark there, or wait for routing that goes around.`
+    );
+  $("marks-note").textContent = problems.length ? problems.join(" ") : state.course.provenance;
+  $("marks-note").classList.toggle("warn", problems.length > 0);
   renderMarksTable($("marks-table"), state.waypoints);
   recompute();
 }
@@ -210,11 +216,16 @@ function recompute() {
   state.route = { rows, totalNm: solved.totalNm, totalHours: solved.totalHours };
 
   renderLegs($("legs"), rows, 0, (i) => selectRow(rows[i].index));
+  // Say where the times are measured FROM: with no fix they run from the start
+  // line, which is a different number from the one you want underway.
+  const origin = boatFix() ? "" : "from the start · ";
   $("legs-total").textContent = rows.length
-    ? `${solved.totalNm.toFixed(1)} nm · ${fmtDuration(solved.totalHours)}`
+    ? `${origin}${solved.totalNm.toFixed(1)} nm · ${fmtDuration(solved.totalHours)}`
     : "";
-  $("legs-title").textContent = boatFix() ? "Legs from the boat" : "Legs from the start";
 
+  const cw = state.direction === "clockwise";
+  $("direction-icon").textContent = cw ? "\u21bb" : "\u21ba";
+  $("direction-label").textContent = cw ? "Clockwise" : "Anticlockwise";
   courseLayer.draw(state.waypoints, state.rows, state.activeIndex);
   field.set(state.wind, state.current);
   updateConditionText();
@@ -474,28 +485,15 @@ function wireUi() {
     })
   );
 
-  // Course direction and variant
-  $("seg-direction").querySelectorAll("[data-direction]").forEach((b) =>
-    b.addEventListener("click", () => {
-      state.direction = b.dataset.direction;
-      $("seg-direction").querySelectorAll("[data-direction]").forEach((o) =>
-        o.setAttribute("aria-selected", String(o === b)));
-      state.activeIndex = 0;
-      saveSettings();
-      rebuildCourse();
-    })
-  );
-  $("seg-variant").querySelectorAll("[data-variant]").forEach((b) =>
-    b.addEventListener("click", () => {
-      if (b.dataset.variant === "cruising" && !state.course.cruising_clockwise?.length) return;
-      state.variant = b.dataset.variant;
-      $("seg-variant").querySelectorAll("[data-variant]").forEach((o) =>
-        o.setAttribute("aria-selected", String(o === b)));
-      state.activeIndex = 0;
-      saveSettings();
-      rebuildCourse();
-    })
-  );
+  // Which way round the course is sailed. On the main page, not buried in
+  // setup: it is a decision made on the water, at the start and sometimes after.
+  $("btn-direction").addEventListener("click", () => {
+    state.direction = state.direction === "clockwise" ? "counterclockwise" : "clockwise";
+    state.activeIndex = 0;
+    state.probe = null;
+    saveSettings();
+    rebuildCourse();
+  });
 
   // Polar editor
   $("polar-reset").addEventListener("click", async () => {
@@ -571,8 +569,6 @@ function syncSetupInputs() {
   $("course-provenance").textContent = state.course.provenance;
   $("polar-note").textContent = state.polarData.note;
   renderPolarTable($("polar-table"), state.polarData, editPolar);
-  const cruising = state.course.cruising_clockwise?.length > 0;
-  $("seg-variant").querySelector('[data-variant="cruising"]').disabled = !cruising;
 }
 
 function editPolar(i, j, value) {
@@ -617,7 +613,7 @@ function saveSettings() {
   try {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify({
       wind: state.wind, current: state.current, variation: state.variation,
-      direction: state.direction, variant: state.variant, night: state.night,
+      direction: state.direction, night: state.night,
     }));
   } catch { /* storage unavailable; settings just won't survive a reload */ }
 }
@@ -630,7 +626,6 @@ function restoreSettings() {
     Object.assign(state.current, s.current ?? {});
     if (Number.isFinite(s.variation)) state.variation = s.variation;
     if (s.direction) state.direction = s.direction;
-    if (s.variant) state.variant = s.variant;
     if (s.night) setNightAtBoot();
   } catch { /* ignore malformed settings */ }
 }
