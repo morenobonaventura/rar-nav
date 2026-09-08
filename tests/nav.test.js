@@ -5,6 +5,7 @@ import {
   haversineNm, initialBearing, destinationPoint, angDiff, norm360,
   trueToMagnetic, windOverWater, vec, mag, dirOf, add,
   Polar, solveCourse, solveLeg, solveRoute, tackPath, fmtDuration, fmtBearing,
+  vmgToWind,
 } from "../js/nav.js";
 
 const polarData = JSON.parse(readFileSync(new URL("../data/polar_dufour40.json", import.meta.url)));
@@ -93,6 +94,31 @@ test("upwind VMG optimum sits between the no-go zone and a close reach", () => {
   assert.ok(up.twa > 35 && up.twa < 55, `beat angle ${up.twa} deg is implausible`);
   const down = polar.vmgOptimum(12, "down");
   assert.ok(down.twa > 140, `run angle ${down.twa} deg is implausible`);
+});
+
+// --- speed made good to windward -------------------------------------------
+
+test("VMG is the whole of SOG when sailing straight at the wind", () => {
+  close(vmgToWind(6, 310, 310), 6, 1e-9);
+});
+
+test("VMG goes negative on a run, by the same amount", () => {
+  close(vmgToWind(6, 130, 310), -6, 1e-9);
+});
+
+test("VMG is zero on a beam reach, whichever tack", () => {
+  close(vmgToWind(6, 40, 310), 0, 1e-9, "wind on the starboard beam");
+  close(vmgToWind(6, 220, 310), 0, 1e-9, "wind on the port beam");
+});
+
+test("VMG at the beat angle is the polar's own upwind optimum", () => {
+  const up = polar.vmgOptimum(12, "up");
+  close(vmgToWind(up.speed, norm360(310 - up.twa), 310), up.vmg, 1e-9);
+});
+
+test("VMG is unknown, not zero, when the boat has no course over ground", () => {
+  assert.equal(vmgToWind(null, 310, 310), null, "no speed");
+  assert.equal(vmgToWind(6, null, 310), null, "no heading — a pin on the map");
 });
 
 // --- the leg solver --------------------------------------------------------

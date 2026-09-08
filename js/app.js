@@ -6,7 +6,7 @@
  * battery cost of leaving this open on deck close to the screen alone.
  */
 
-import { Polar, solveLeg, solveRoute, tackPath, fmtBearing, fmtDuration, fmtClock, norm360, haversineNm } from "./nav.js";
+import { Polar, solveLeg, solveRoute, tackPath, fmtBearing, fmtDuration, fmtClock, norm360, haversineNm, vmgToWind } from "./nav.js";
 import { buildCourse, displayLegs, isOnLand, crossesLand, courseLandConflicts, gateWidthNm } from "./course.js";
 import { createMap, addCoast, CourseLayer, BoatLayer, ProbeLayer, ArrowField } from "./map.js";
 import { Gps, Wake, SAMPLE_MS, WINDOW_MS } from "./gps.js";
@@ -229,6 +229,7 @@ function recompute() {
   courseLayer.draw(state.waypoints, state.rows, state.activeIndex);
   field.set(state.wind, state.current);
   updateConditionText();
+  drawInstruments();
   refreshProbe();
 }
 
@@ -243,10 +244,9 @@ function selectRow(i) {
 }
 
 /**
- * Frame the boat, the mark and both tacks, keeping them clear of the readout
- * that sits over the top of the map. Only done when a leg is picked from the
- * list, where the mark may well be off screen — moving the map under someone
- * who just tapped a point they were already looking at would be rude.
+ * Frame the boat, the mark and both tacks. Only done when a leg is picked from
+ * the list, where the mark may well be off screen — moving the map under
+ * someone who just tapped a point they were already looking at would be rude.
  */
 function frameTrack() {
   const from = boatOrStart();
@@ -255,12 +255,7 @@ function frameTrack() {
   for (const path of state.probePaths ?? []) {
     if (path.corner) pts.push([path.corner.lat, path.corner.lon]);
   }
-  const probeBox = $("probe").hidden ? 0 : $("probe").offsetHeight;
-  map.fitBounds(L.latLngBounds(pts), {
-    paddingTopLeft: [26, probeBox + 26],
-    paddingBottomRight: [26, 26],
-    maxZoom: 13,
-  });
+  map.fitBounds(L.latLngBounds(pts), { padding: [26, 26], maxZoom: 13 });
 }
 
 // --- the tapped point ------------------------------------------------------
@@ -272,8 +267,10 @@ function setProbe(point, name) {
 
 function refreshProbe() {
   const box = $("probe");
+  const wasShown = !box.hidden;
   if (!state.probe) {
     box.hidden = true;
+    if (wasShown) map.invalidateSize();
     probeLayer.update(null, null);
     return;
   }
@@ -304,6 +301,7 @@ function refreshProbe() {
     state.variation
   );
   box.hidden = false;
+  if (!wasShown) map.invalidateSize();
   probeLayer.update(boatFix(), state.probe, paths, blocked);
 }
 
@@ -330,30 +328,54 @@ function onGps() {
     $("fix-text").textContent = "Waiting for a GPS fix";
   }
 
-  const sogEl = $("sog");
-  const cogEl = $("cog");
-  sogEl.textContent = fix?.sog != null ? fix.sog.toFixed(1) : "--";
-  cogEl.textContent = fix?.cog != null ? String(Math.round(fix.cog)).padStart(3, "0") : "--";
-  $("gauge-sog").classList.toggle("stale", fix?.sog == null);
-  $("gauge-cog").classList.toggle("stale", fix?.cog == null);
-
   boatLayer.update(fix);
-  drawSparklines();
-  recompute();
+  recompute(); // draws the instruments
   if ($("panel-history").open) drawHistory();
 }
 
-function drawSparklines() {
+/**
+ * The three figures in the head. Drawn from `recompute` rather than from the
+ * GPS alone: VMG depends on the wind as well as the fix, so editing the wind
+ * has to move it, and a stale VMG next to a live SOG would be read as fact.
+ */
+function drawInstruments() {
+  const fix = boatFix();
+  const vmg = vmgToWind(fix?.sog ?? null, fix?.cog ?? null, state.wind.twd);
+
+  $("sog").textContent = fix?.sog != null ? fix.sog.toFixed(1) : "--";
+  $("cog").textContent = fix?.cog != null ? String(Math.round(fix.cog)).padStart(3, "0") : "--";
+  $("vmg").textContent = vmg == null ? "--" : vmg.toFixed(1);
+  $("gauge-sog").classList.toggle("stale", fix?.sog == null);
+  $("gauge-cog").classList.toggle("stale", fix?.cog == null);
+  $("gauge-vmg").classList.toggle("stale", vmg == null);
+
   const h = gps.history();
   sparkline($("spark-sog"), h.samples, "sog", false, WINDOW_MS);
   sparkline($("spark-cog"), h.samples, "cog", true, WINDOW_MS);
+  sparkline($("spark-vmg"), withVmg(h.samples), "vmg", false, WINDOW_MS);
 }
+
+/**
+ * VMG for every sample in the buffer, against the wind as it is set NOW.
+ *
+ * Only SOG and COG are recorded, so the history is re-derived rather than
+ * stored: correct the wind and the whole trace corrects with it, which is the
+ * honest behaviour when the wind is a number you typed rather than a measurement.
+ */
+const withVmg = (samples) =>
+  samples.map((x) => ({ ...x, vmg: vmgToWind(x.sog, x.cog, state.wind.twd) }));
 
 // --- history panel ---------------------------------------------------------
 
+const HISTORY_TITLES = {
+  sog: "Speed over ground",
+  cog: "Course over ground",
+  vmg: "Speed made good to windward",
+};
+
 function openHistory(f) {
   state.historyField = f;
-  $("hist-title").textContent = f === "sog" ? "Speed over ground" : "Course over ground";
+  $("hist-title").textContent = HISTORY_TITLES[f];
   drawHistory();
   openPanel("panel-history");
 }
@@ -363,13 +385,15 @@ function drawHistory() {
   const f = state.historyField;
   const circular = f === "cog";
   const unit = circular ? "°" : "kn";
-  const colour = getComputedStyle(document.body).getPropertyValue(circular ? "--tide" : "--wind").trim();
+  const colour = getComputedStyle(document.body)
+    .getPropertyValue({ sog: "--wind", cog: "--tide", vmg: "--boat" }[f]).trim();
   const canvas = $("hist-canvas");
+  const samples = f === "vmg" ? withVmg(h.samples) : h.samples;
 
-  if (state.historyView === "series") timeSeries(canvas, h.samples, f, { unit, colour });
-  else histogram(canvas, h.samples, f, { unit, colour });
+  if (state.historyView === "series") timeSeries(canvas, samples, f, { unit, colour });
+  else histogram(canvas, samples, f, { unit, colour });
 
-  renderStats($("hist-stats"), stats(h.samples.map((s) => s[f]), circular), unit, circular);
+  renderStats($("hist-stats"), stats(samples.map((s) => s[f]), circular), unit, circular);
 
   const mins = (h.spanMs / 60000).toFixed(1);
   const parts = [`${h.samples.length} samples over ${mins} min`];
@@ -424,6 +448,7 @@ function closePanels() {
 function wireUi() {
   $("gauge-sog").addEventListener("click", () => openHistory("sog"));
   $("gauge-cog").addEventListener("click", () => openHistory("cog"));
+  $("gauge-vmg").addEventListener("click", () => openHistory("vmg"));
 
   // Arm, then the next tap on the map places the boat. Tapping the fix chip
   // hands control back to the satellites.
