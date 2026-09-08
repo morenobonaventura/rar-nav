@@ -9,6 +9,8 @@
  * measured as circular deviation.
  */
 
+import { clock } from "./clock.js";
+
 const css = (n) => getComputedStyle(document.body).getPropertyValue(n).trim();
 const D2R = Math.PI / 180;
 
@@ -79,7 +81,7 @@ export function stats(values, circular) {
  * the right and visibly fills up — instead of two enormous bars implying five
  * minutes of data that was never sampled.
  */
-export function sparkline(canvas, samples, field, circular, windowMs, now = Date.now()) {
+export function sparkline(canvas, samples, field, circular, windowMs, now = clock.now()) {
   const { ctx, w, h } = surface(canvas);
   const usable = samples.filter((s) => s[field] != null && !Number.isNaN(s[field]));
   if (usable.length < 2) return;

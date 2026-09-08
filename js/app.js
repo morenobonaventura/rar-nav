@@ -12,6 +12,7 @@ import { createMap, addCoast, CourseLayer, BoatLayer, ProbeLayer, ArrowField } f
 import { Gps, Wake, SAMPLE_MS, WINDOW_MS } from "./gps.js";
 import { sparkline, timeSeries, histogram, stats, dial, dialDirection } from "./charts.js";
 import { renderLegs, renderPolarTable, renderMarksTable, renderStats, fillProbe } from "./ui.js";
+import { clock } from "./clock.js";
 
 const $ = (id) => document.getElementById(id);
 const SETTINGS_KEY = "rarnav.settings.v1";
@@ -103,7 +104,7 @@ async function boot() {
     recompute,
     feed(fix) {
       gps.onFix({
-        timestamp: Date.now(),
+        timestamp: clock.now(),
         coords: {
           latitude: fix.lat, longitude: fix.lon,
           accuracy: fix.accuracy ?? 8,
@@ -276,7 +277,7 @@ function refreshProbe() {
   }
   const from = boatOrStart();
   const leg = solveLeg(from, state.probe, state.wind, state.current, state.polar, state.variation);
-  leg.eta = Number.isFinite(leg.hours) ? new Date(Date.now() + leg.hours * 3600e3) : null;
+  leg.eta = Number.isFinite(leg.hours) ? new Date(clock.now() + leg.hours * 3600e3) : null;
 
   // The track to sail, and whether either option runs over an island. This is
   // point-to-point routing: it does not go around anything, it only says when

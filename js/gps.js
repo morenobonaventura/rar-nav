@@ -16,6 +16,7 @@
  */
 
 import { haversineNm, initialBearing, KN_PER_MS } from "./nav.js";
+import { clock } from "./clock.js";
 
 export const SAMPLE_MS = 5000;
 export const WINDOW_MS = 5 * 60 * 1000;
@@ -67,7 +68,7 @@ export class Gps extends EventTarget {
   }
 
   onFix(pos) {
-    const now = pos.timestamp || Date.now();
+    const now = pos.timestamp || clock.now();
     const c = pos.coords;
     const here = { lat: c.latitude, lon: c.longitude };
 
@@ -127,7 +128,7 @@ export class Gps extends EventTarget {
    * about them: how much wall-clock they actually span, how old the newest one
    * is, and whether the app was suspended mid-window.
    */
-  history(now = Date.now()) {
+  history(now = clock.now()) {
     const kept = this.samples.filter((s) => now - s.t <= WINDOW_MS);
     if (!kept.length) return { samples: [], spanMs: 0, staleMs: null, gapMs: 0, expected: MAX_SAMPLES };
     let gapMs = 0;
@@ -154,7 +155,7 @@ export class Gps extends EventTarget {
 function load() {
   try {
     const raw = JSON.parse(localStorage.getItem(STORE_KEY) ?? "[]");
-    const cutoff = Date.now() - WINDOW_MS;
+    const cutoff = clock.now() - WINDOW_MS;
     return Array.isArray(raw) ? raw.filter((s) => s && s.t > cutoff) : [];
   } catch {
     return [];

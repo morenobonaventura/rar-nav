@@ -8,7 +8,7 @@
  *
  * Bump CACHE when any file below changes, or phones will keep the old copy.
  */
-const CACHE = "rarnav-v13";
+const CACHE = "rarnav-v14";
 
 const ASSETS = [
   "./",
@@ -17,6 +17,7 @@ const ASSETS = [
   "css/style.css",
   "js/app.js",
   "js/nav.js",
+  "js/clock.js",
   "js/course.js",
   "js/map.js",
   "js/gps.js",
