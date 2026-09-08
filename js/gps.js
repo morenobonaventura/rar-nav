@@ -108,6 +108,9 @@ export class Gps extends EventTarget {
       cog,
       derived,
       t: now,
+      // Only ever set by the simulator. A real GeolocationPosition has no wind
+      // in it, so on the water this is undefined and nothing downstream looks.
+      wind: pos.wind,
     };
 
     if (now - this.lastSampleAt >= SAMPLE_MS) {
