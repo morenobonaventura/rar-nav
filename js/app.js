@@ -6,12 +6,12 @@
  * battery cost of leaving this open on deck close to the screen alone.
  */
 
-import { Polar, solveLeg, solveRoute, tackPath, fmtBearing, fmtDuration, fmtClock, norm360, haversineNm, vmgToWind } from "./nav.js";
+import { Polar, solveLeg, solveRoute, tackPath, fmtBearing, fmtDuration, fmtClock, norm360, haversineNm, vmgToWind, shiftFromCog } from "./nav.js";
 import { buildCourse, displayLegs, isOnLand, crossesLand, courseLandConflicts, gateWidthNm } from "./course.js";
 import { createMap, addCoast, CourseLayer, BoatLayer, ProbeLayer, ArrowField } from "./map.js";
 import { Gps, Wake, SAMPLE_MS, WINDOW_MS } from "./gps.js";
 import { sparkline, timeSeries, histogram, stats, dial, dialDirection } from "./charts.js";
-import { renderLegs, renderPolarTable, renderMarksTable, renderStats, fillProbe, describe } from "./ui.js";
+import { renderLegs, renderPolarTable, renderMarksTable, renderStats, fillProbe } from "./ui.js";
 
 const $ = (id) => document.getElementById(id);
 const SETTINGS_KEY = "rarnav.settings.v1";
@@ -297,8 +297,7 @@ function refreshProbe() {
       brgm: $("probe-brgm"), eta: $("probe-eta"), etaLabel: $("probe-eta-label"), mode: $("probe-mode") },
     leg,
     state.probe.name,
-    state.probe,
-    state.variation
+    state.probe
   );
   box.hidden = false;
   if (!wasShown) map.invalidateSize();
@@ -352,7 +351,35 @@ function drawInstruments() {
   const h = gps.history();
   sparkline($("spark-sog"), h.samples, "sog", false, WINDOW_MS);
   sparkline($("spark-cog"), h.samples, "cog", true, WINDOW_MS);
-  sparkline($("spark-vmg"), withVmg(h.samples), "vmg", false, WINDOW_MS);
+  drawShift(h.samples);
+}
+
+/**
+ * Which tack, and whether the breeze has come forward on it.
+ *
+ * Takes the VMG gauge's sparkline slot: on a beat, "you are being headed" is
+ * worth more than five minutes of VMG trend, and the trend is still one tap
+ * away in the history panel. Says nothing at all off the wind, or before there
+ * is enough of a run on this tack to compare -- an empty line is honest, and a
+ * shift invented out of three samples would get someone to tack on a wave.
+ */
+function drawShift(samples) {
+  const shift = shiftFromCog(samples, state.wind.twd);
+  const tackEl = $("vmg-tack");
+  const el = $("vmg-shift");
+
+  tackEl.textContent = shift ? (shift.tack === "port" ? "PORT" : "STBD") : "";
+  el.className = "shift";
+  if (!shift) {
+    el.textContent = "";
+    return;
+  }
+  if (shift.state === "steady") {
+    el.textContent = "steady";
+    return;
+  }
+  el.classList.add(shift.state);
+  el.textContent = `${shift.state === "headed" ? "HEADED" : "lifted"} ${Math.round(Math.abs(shift.shiftDeg))}°`;
 }
 
 /**

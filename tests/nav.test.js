@@ -5,7 +5,7 @@ import {
   haversineNm, initialBearing, destinationPoint, angDiff, norm360,
   trueToMagnetic, windOverWater, vec, mag, dirOf, add,
   Polar, solveCourse, solveLeg, solveRoute, tackPath, fmtDuration, fmtBearing,
-  vmgToWind,
+  vmgToWind, shiftFromCog, meanBearing,
 } from "../js/nav.js";
 
 const polarData = JSON.parse(readFileSync(new URL("../data/polar_dufour40.json", import.meta.url)));
@@ -119,6 +119,80 @@ test("VMG at the beat angle is the polar's own upwind optimum", () => {
 test("VMG is unknown, not zero, when the boat has no course over ground", () => {
   assert.equal(vmgToWind(null, 310, 310), null, "no speed");
   assert.equal(vmgToWind(6, null, 310), null, "no heading — a pin on the map");
+});
+
+// --- headers and lifts, from COG alone -------------------------------------
+
+const NOW = 1_700_000_000_000;
+/** A run of samples on one steady course, oldest first, 5 s apart. */
+const track = (cogs, { sog = 6, endAt = NOW } = {}) =>
+  cogs.map((cog, i) => ({ t: endAt - (cogs.length - 1 - i) * 5000, cog, sog }));
+
+const TWD = 310;
+// Close hauled at 45 degrees: port sails 355, starboard sails 265.
+const PORT = 355, STBD = 265;
+
+test("bearings average as directions, not as numbers", () => {
+  close(meanBearing([359, 1]), 0, 1e-6, "either side of the seam");
+  close(meanBearing([10, 20, 30]), 20, 1e-6);
+});
+
+test("a steady course on either tack reports steady", () => {
+  for (const [name, cog] of [["port", PORT], ["starboard", STBD]]) {
+    const s = shiftFromCog(track(Array(40).fill(cog)), TWD, NOW);
+    assert.equal(s.state, "steady", name);
+    assert.equal(s.tack, name);
+  }
+});
+
+test("the wind veering right heads starboard and lifts port", () => {
+  // 30 samples on the old wind, then a full 60 s window on a wind 10 deg right.
+  const veer = (base) => track([...Array(30).fill(base), ...Array(13).fill(base + 10)]);
+  const stbd = shiftFromCog(veer(STBD), TWD, NOW);
+  assert.equal(stbd.state, "headed", "starboard is headed by a right shift");
+  close(stbd.shiftDeg, 10, 0.5);
+
+  const port = shiftFromCog(veer(PORT), TWD, NOW);
+  assert.equal(port.state, "lifted", "port is lifted by the same shift");
+  close(port.shiftDeg, -10, 0.5);
+});
+
+test("the wind backing left mirrors it exactly", () => {
+  const back = (base) => track([...Array(30).fill(base), ...Array(13).fill(base - 10)]);
+  assert.equal(shiftFromCog(back(STBD), TWD, NOW).state, "lifted");
+  assert.equal(shiftFromCog(back(PORT), TWD, NOW).state, "headed");
+});
+
+test("a wandering helm is not a shift", () => {
+  // Same mean, plus or minus 12 degrees of steering: bigger than the shift
+  // threshold, but the run's own wander is bigger still.
+  const wobble = Array.from({ length: 42 }, (_, i) => STBD + (i % 2 ? 12 : -12));
+  assert.equal(shiftFromCog(track(wobble), TWD, NOW).state, "steady");
+});
+
+test("nothing is reported across a tack, only after a run on the new one", () => {
+  // Twelve samples on starboard is a minute -- not yet a baseline to compare to.
+  const justTacked = track([...Array(30).fill(PORT), ...Array(12).fill(STBD)]);
+  assert.equal(shiftFromCog(justTacked, TWD, NOW), null);
+});
+
+test("nothing is reported off the wind, where COG follows the helm", () => {
+  const reaching = track(Array(40).fill(norm360(TWD + 110)));
+  assert.equal(shiftFromCog(reaching, TWD, NOW), null, "a beam reach has no tack to lose");
+});
+
+test("a drifting boat is not read as a shift", () => {
+  assert.equal(shiftFromCog(track(Array(40).fill(STBD), { sog: 0.3 }), TWD, NOW), null);
+});
+
+test("a 30 degree error in the typed wind does not change the verdict", () => {
+  const veered = track([...Array(30).fill(STBD), ...Array(13).fill(STBD + 10)]);
+  for (const twd of [TWD - 30, TWD, TWD + 30]) {
+    const s = shiftFromCog(veered, twd, NOW);
+    assert.equal(s.tack, "starboard", `TWD ${twd}`);
+    assert.equal(s.state, "headed", `TWD ${twd}`);
+    close(s.shiftDeg, 10, 0.5, `TWD ${twd}`);
+  }
 });
 
 // --- the leg solver --------------------------------------------------------

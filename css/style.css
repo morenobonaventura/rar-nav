@@ -157,6 +157,23 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 }
 .gauge-value .unit { font-size: 14px; font-weight: 400; color: var(--ink-soft); letter-spacing: 0; }
 .spark { width: 100%; max-width: 100%; height: 20px; display: block; margin-top: 2px; }
+
+/* Tack and shift, in the VMG gauge's sparkline slot. HEADED is the one that
+   asks you to do something, so it is the only one that shouts. */
+.tack { margin-left: 6px; font-size: 11px; letter-spacing: .08em; color: var(--ink); font-weight: 600; }
+.shift {
+  display: block;
+  height: 20px;
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 20px;
+  letter-spacing: .04em;
+  color: var(--ink-soft);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.shift.headed { color: var(--warn); font-weight: 700; }
+.shift.lifted { color: var(--boat); font-weight: 600; }
 .gauge.stale .gauge-value { color: var(--ink-soft); }
 
 /* Map ----------------------------------------------------------------------*/
