@@ -40,6 +40,7 @@ const state = {
   manual: null,
   placing: false,
   night: false,
+  sim: null,
   historyField: "sog",
   historyView: "series",
 };
@@ -93,6 +94,7 @@ async function boot() {
   setInterval(() => drawSparklines(), SAMPLE_MS);
 
   registerServiceWorker();
+  startSimulationIfAsked();
 
   // A handle on the running app, for checking what it thinks is going on
   // without a laptop: rarnav.state.wind, rarnav.gps.history(), and
@@ -310,7 +312,17 @@ function refreshProbe() {
 function onGps() {
   const fix = boatFix();
   const fixEl = $("fix");
-  if (state.placing) {
+  if (state.sim) {
+    // One element says this, not two. The badge and the fix chip were both
+    // trying to report the same thing in a 390 px rail, and the chip lost --
+    // ellipsised to nothing, which left the rail claiming a simulation without
+    // saying which. So the badge takes the name, and the chip stands down:
+    // there is no GPS running, and it has nothing true to report. Placing a
+    // boat by hand is meaningless here too, so that button goes with it.
+    fixEl.hidden = true;
+    $("btn-place").hidden = true;
+    $("simbadge").textContent = `SIM · ${state.sim}`;
+  } else if (state.placing) {
     fixEl.dataset.quality = "manual";
     $("fix-text").textContent = "Tap the map to place the boat";
   } else if (state.manual) {
@@ -705,6 +717,25 @@ function tickClock() {
   $("clock").textContent = [d.getHours(), d.getMinutes(), d.getSeconds()]
     .map((n) => String(n).padStart(2, "0"))
     .join(":");
+}
+
+/**
+ * Only ever from `?sim=<name>` in the URL. Dynamically imported so js/sim.js is
+ * not in the main graph and not in the service worker's precache list -- on the
+ * boat the file is absent, not merely switched off.
+ */
+async function startSimulationIfAsked() {
+  if (!new URLSearchParams(location.search).get("sim")) return;
+  try {
+    const { maybeStart } = await import("./sim.js");
+    const sim = await maybeStart(gps);
+    if (!sim) return;
+    state.sim = sim.name;
+    $("simbadge").hidden = false;
+    onGps();
+  } catch {
+    /* no simulator on the boat: the app is an instrument first */
+  }
 }
 
 function registerServiceWorker() {

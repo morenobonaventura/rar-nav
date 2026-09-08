@@ -56,6 +56,12 @@ body.night {
 
 * { box-sizing: border-box; }
 
+/* An explicit `display` in a rule beats the user agent's [hidden] rule, so
+   .fix { display: flex } quietly made hidden="" a no-op on it. That is a whole
+   class of bug -- anything the app hides by property could reappear -- so it is
+   settled once, here, rather than per element. */
+[hidden] { display: none !important; }
+
 html, body {
   margin: 0;
   height: 100%;
@@ -112,6 +118,19 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .fix[data-quality="manual"] { color: var(--warn); font-weight: 600; }
 .fix[data-quality="manual"] .dot { background: var(--warn); box-shadow: 0 0 0 3px color-mix(in srgb, var(--warn) 22%, transparent); }
 .icon[aria-pressed="true"]#btn-place { background: var(--warn); border-color: var(--warn); }
+
+/* Permanent, not a toast. A simulated fix that can be mistaken for a real one
+   is worse than no simulator at all. */
+.simbadge {
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: var(--warn);
+  color: var(--paper);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  white-space: nowrap;
+}
 
 #clock { margin-left: auto; font-variant-numeric: tabular-nums; letter-spacing: .02em; color: var(--ink-soft); }
 .rail-actions { display: flex; gap: 4px; margin-left: auto; }

@@ -3,3 +3,9 @@ tools/coastline_raw.json
 
 .DS_Store
 node_modules/
+
+# Generated tracks (tools/make_track.js --all, ~400 KB). Regenerate from a seed
+# rather than committing them: they are for js/sim.js, which is itself kept off
+# the boat, and a committed track goes stale the first time the boat model
+# improves while still looking authoritative.
+data/tracks/
