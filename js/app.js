@@ -10,7 +10,7 @@ import { Polar, solveLeg, solveRoute, tackPath, fmtBearing, fmtDuration, fmtCloc
 import { buildCourse, displayLegs, isOnLand, crossesLand, courseLandConflicts, gateWidthNm } from "./course.js";
 import { createMap, addCoast, CourseLayer, BoatLayer, ProbeLayer, ArrowField } from "./map.js";
 import { Gps, Wake, SAMPLE_MS, WINDOW_MS } from "./gps.js";
-import { sparkline, timeSeries, histogram, stats, dial, dialDirection } from "./charts.js";
+import { sparkline, timeSeries, histogram, compass, stats, dial, dialDirection } from "./charts.js";
 import { renderLegs, renderPolarTable, renderMarksTable, renderStats, fillProbe } from "./ui.js";
 import { clock } from "./clock.js";
 
@@ -438,8 +438,21 @@ const HISTORY_TITLES = {
 function openHistory(f) {
   state.historyField = f;
   $("hist-title").textContent = HISTORY_TITLES[f];
+
+  // A compass rose of speeds would be nonsense, so the tab only exists for the
+  // one field it means anything for -- and a view left selected from a
+  // previous field has to fall back rather than draw an empty circle.
+  $("tab-compass").hidden = f !== "cog";
+  if (state.historyView === "compass" && f !== "cog") state.historyView = "series";
+  selectHistoryTab();
+
   drawHistory();
   openPanel("panel-history");
+}
+
+function selectHistoryTab() {
+  $("panel-history").querySelectorAll("[data-view]").forEach((o) =>
+    o.setAttribute("aria-selected", String(o.dataset.view === state.historyView)));
 }
 
 function drawHistory() {
@@ -450,10 +463,23 @@ function drawHistory() {
   const colour = getComputedStyle(document.body)
     .getPropertyValue({ sog: "--wind", cog: "--tide", vmg: "--boat" }[f]).trim();
   const canvas = $("hist-canvas");
+  canvas.classList.toggle("rose", state.historyView === "compass");
   const samples = f === "vmg" ? withVmg(h.samples) : h.samples;
 
-  if (state.historyView === "series") timeSeries(canvas, samples, f, { unit, colour });
-  else histogram(canvas, samples, f, { unit, colour });
+  if (state.historyView === "compass") {
+    // The wind is drawn from what is typed in the conditions panel, which is
+    // the only wind this app has. The beat angle comes from the polar, so the
+    // dashed lay lines move with the breeze strength as well as its direction.
+    compass(canvas, samples, {
+      colour,
+      twd: state.wind.twd,
+      beatAngle: state.polar?.vmgOptimum(state.wind.tws, "up").twa ?? null,
+    });
+  } else if (state.historyView === "series") {
+    timeSeries(canvas, samples, f, { unit, colour });
+  } else {
+    histogram(canvas, samples, f, { unit, colour });
+  }
 
   renderStats($("hist-stats"), stats(samples.map((s) => s[f]), circular), unit, circular);
 

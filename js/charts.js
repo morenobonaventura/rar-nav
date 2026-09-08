@@ -296,6 +296,126 @@ function empty(ctx, w, h, message) {
  * dial is outbound, because a set is where the water goes. Both then agree with
  * the arrows on the map, where wind and tide alike fly the way the fluid moves.
  */
+/**
+ * Where the boat has pointed, as a spiral: angle is COG, radius is time.
+ *
+ * The time series answers "what was my heading at 14:32", which is rarely the
+ * question. This answers "where have I been pointing, and where am I pointing
+ * now relative to that" -- which is the beating question. A steady course is a
+ * clean radial spoke. An oscillating breeze bends the spoke as it grows, and
+ * you can see the last minute sitting fifteen degrees off where the run began.
+ *
+ * The centre is the oldest sample and the rim is now, so the plot grows
+ * outwards like a tree ring and the newest data gets the most room -- which is
+ * the right way round, since angular resolution near the centre is poor and the
+ * five-minute-old heading is the one you care least about.
+ *
+ * A tack is not drawn as a sweep. The line breaks and reappears on the new arm,
+ * because a tack is a discontinuity in what the boat was doing, not a slow turn
+ * through every heading in between; joining them would draw a chord across the
+ * plot through headings never sailed.
+ */
+export function compass(canvas, samples, { colour, twd = null, beatAngle = null } = {}) {
+  const { ctx, w, h } = surface(canvas);
+  const ink = css("--ink-soft"), rule = css("--rule");
+  const cx = w / 2, cy = h / 2;
+  const R = Math.min(w, h) / 2 - 26;
+
+  const at = (deg, r) => [cx + r * Math.sin(deg * D2R), cy - r * Math.cos(deg * D2R)];
+  const usable = samples.filter((s) => s[  "cog" ] != null && !Number.isNaN(s.cog));
+
+  if (usable.length < 2) return empty(ctx, w, h, "Not enough samples yet");
+
+  // --- the rose ---
+  ctx.strokeStyle = rule;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(cx, cy, R, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.strokeStyle = rule;
+  for (let b = 0; b < 360; b += 30) {
+    const long = b % 90 === 0;
+    ctx.globalAlpha = long ? 0.9 : 0.45;
+    ctx.beginPath();
+    ctx.moveTo(...at(b, R));
+    ctx.lineTo(...at(b, R - (long ? 9 : 5)));
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
+  ctx.fillStyle = ink;
+  ctx.font = "600 11px -apple-system, system-ui, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  for (const [b, label] of [[0, "N"], [90, "E"], [180, "S"], [270, "W"]]) {
+    ctx.fillText(label, ...at(b, R + 13));
+  }
+
+  // --- the wind, if we have been told about it ---
+  // Only ever the TYPED wind, so it is drawn as a soft sector rather than a
+  // hairline: it is an assumption, and pretending otherwise would invite
+  // reading a lay angle off it to the degree.
+  if (twd != null) {
+    ctx.strokeStyle = css("--wind");
+    ctx.globalAlpha = 0.85;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(...at(twd, R));
+    ctx.lineTo(...at(twd, R - 14));
+    ctx.stroke();
+
+    if (beatAngle != null) {
+      ctx.globalAlpha = 0.5;
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 4]);
+      for (const side of [-1, 1]) {
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(...at(twd + side * beatAngle, R));
+        ctx.stroke();
+      }
+      ctx.setLineDash([]);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // --- the track ---
+  const n = usable.length;
+  const radiusOf = (i) => R * (0.10 + 0.9 * (i / (n - 1)));
+  ctx.lineWidth = 2;
+  ctx.lineCap = "round";
+  for (let i = 1; i < n; i++) {
+    // Break across a tack, and across a gap in sampling.
+    if (Math.abs(unwrapStep(usable[i].cog, usable[i - 1].cog)) > 25) continue;
+    if (usable[i].t - usable[i - 1].t > 20000) continue;
+    ctx.globalAlpha = 0.25 + 0.75 * (i / (n - 1)); // recent reads stronger
+    ctx.strokeStyle = colour;
+    ctx.beginPath();
+    ctx.moveTo(...at(usable[i - 1].cog, radiusOf(i - 1)));
+    ctx.lineTo(...at(usable[i].cog, radiusOf(i)));
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
+  // Now.
+  const last = usable[n - 1];
+  ctx.fillStyle = colour;
+  ctx.beginPath();
+  ctx.arc(...at(last.cog, radiusOf(n - 1)), 4.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = ink;
+  ctx.font = "400 10.5px -apple-system, system-ui, sans-serif";
+  ctx.fillText("5 min ago", cx, cy - 9);
+  ctx.beginPath();
+  ctx.arc(cx, cy, 2, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+/** Signed shortest step between two bearings, for spotting a tack. */
+const unwrapStep = (a, b) => ((((a - b) % 360) + 540) % 360) - 180;
+
 export function dial(canvas, dir, speed, colour, label, inbound = false) {
   const { ctx, w, h } = surface(canvas);
   const cx = w / 2;

@@ -458,6 +458,9 @@ body.night .scrim { background: rgba(0, 0, 0, .7); }
 .seg button[aria-selected="true"] { background: var(--ink); color: var(--paper); font-weight: 600; }
 
 #hist-canvas { width: 100%; height: auto; aspect-ratio: 2 / 1; }
+/* A rose needs its height. At 2:1 the circle is limited by the short side and
+   half the panel is empty either side of it. */
+#hist-canvas.rose { aspect-ratio: 1 / 1; max-height: 46vh; margin-inline: auto; display: block; }
 .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 10px; }
 .stats div { display: grid; gap: 1px; }
 .stats b { font-size: 19px; font-weight: 600; font-variant-numeric: tabular-nums; }
