@@ -174,6 +174,13 @@ or you will spend an afternoon debugging code the browser is not running.
 `rarnav.gps.history()`, and `rarnav.feed({lat, lon, sog, cog})` to drive the
 display from a made-up position and see what a leg looks like before sailing it.
 
+That injects one fix, which is enough to eyeball a leg and not enough to
+exercise anything that needs the boat to move — a tack, a wind shift, a GPS
+gap, an approach to a mark. [SIMULATION.md](SIMULATION.md) specs a simulation
+mode that would, and names the one thing that has to be fixed first: the app
+reads the wall clock in seven places, so a compressed track silently falls out
+of every buffer.
+
 ## Deploying
 
 Static files, no build step. GitHub Pages from `main` at the repository root.
