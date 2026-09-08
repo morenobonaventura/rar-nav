@@ -101,6 +101,28 @@ export function windOverWater(twd, tws, set, drift) {
   return { tws: mag(rel), twd: norm360(dirOf(rel) + 180) };
 }
 
+/**
+ * Speed made good to windward, from the boat's own track over the ground.
+ *
+ * The component of the boat's velocity along the wind axis: positive when it
+ * is gaining ground toward where the wind comes from, negative when running
+ * away from it. This is the number that says whether the last shift was worth
+ * taking, and it is the one to compare against `Polar.vmgOptimum` — sailing
+ * 0.3 kn under target VMG for ten minutes is a boat length a tack.
+ *
+ * Deliberately ground-referenced, to match the SOG and COG it is built from
+ * and the windward mark it is being sailed toward. It is NOT the through-water
+ * VMG a polar is measured at, so in a strong cross-set the two differ; the
+ * difference is the tide doing the work, which is exactly what you want to see.
+ *
+ * Returns null when there is nothing to compute from — a boat sitting still
+ * has no course over ground, and a made-up number here would read as fact.
+ */
+export function vmgToWind(sog, cog, twd) {
+  if (sog == null || cog == null || twd == null) return null;
+  return sog * Math.cos(angDiff(twd, cog) * D2R);
+}
+
 // --- polar -----------------------------------------------------------------
 
 export class Polar {
@@ -355,6 +377,28 @@ export function solveLeg(from, to, wind, current, polar, variation) {
       tack: l.twa > 0 ? "port" : "starboard",
     })),
     warnings,
+  };
+}
+
+/**
+ * Speed made good on every bearing, as a lookup table.
+ *
+ * For a fixed wind, tide and polar, VMC depends on nothing but the bearing — so
+ * a router comparing thousands of legs should solve the hull once per bearing
+ * rather than once per leg. Building this costs about as much as 360 legs and
+ * then makes every one of them a lookup.
+ *
+ * @returns {(bearing:number) => number} knots made good, interpolated
+ */
+export function vmcTable(wind, current, polar, step = 1) {
+  const n = Math.round(360 / step);
+  const table = new Float64Array(n);
+  for (let i = 0; i < n; i++) table[i] = Math.max(0, solveCourse(i * step, wind, current, polar).vmc);
+  return (bearing) => {
+    const x = (norm360(bearing) / step) % n;
+    const i = Math.floor(x);
+    const f = x - i;
+    return table[i] * (1 - f) + table[(i + 1) % n] * f;
   };
 }
 

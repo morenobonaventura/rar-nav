@@ -41,6 +41,24 @@
     <span class="gauge-value"><span id="cog">--</span><span class="unit">°T</span></span>
     <canvas class="spark" id="spark-cog" width="240" height="34" aria-hidden="true"></canvas>
   </button>
+  <button class="gauge" id="gauge-vmg" type="button" title="Speed made good to windward">
+    <span class="gauge-label">VMG</span>
+    <span class="gauge-value"><span id="vmg">--</span><span class="unit">kn</span></span>
+    <canvas class="spark" id="spark-vmg" width="240" height="34" aria-hidden="true"></canvas>
+  </button>
+</section>
+
+<!-- Tapped-point readout ---------------------------------------------------->
+<section id="probe" class="probe" hidden>
+  <button id="probe-close" class="probe-close" type="button" aria-label="Clear the tapped point">×</button>
+  <div class="probe-head"><span id="probe-name">Tapped point</span><span id="probe-pos"></span></div>
+  <div class="probe-grid">
+    <div><b id="probe-dist">--</b><span>distance</span></div>
+    <div><b id="probe-brgt">--</b><span>bearing T</span></div>
+    <div><b id="probe-brgm">--</b><span>bearing M</span></div>
+    <div><b id="probe-eta">--</b><span id="probe-eta-label">time to go</span></div>
+  </div>
+  <p class="probe-mode" id="probe-mode"></p>
 </section>
 
 <!-- Map --------------------------------------------------------------------->
@@ -59,18 +77,6 @@
     </button>
   </div>
 
-  <!-- Readout for a tapped point -->
-  <aside id="probe" class="probe" hidden>
-    <button id="probe-close" class="probe-close" type="button" aria-label="Clear the tapped point">×</button>
-    <div class="probe-head"><span id="probe-name">Tapped point</span><span id="probe-pos"></span></div>
-    <div class="probe-grid">
-      <div><b id="probe-dist">--</b><span>distance</span></div>
-      <div><b id="probe-brgt">--</b><span>bearing T</span></div>
-      <div><b id="probe-brgm">--</b><span>bearing M</span></div>
-      <div><b id="probe-eta">--</b><span id="probe-eta-label">time to go</span></div>
-    </div>
-    <p class="probe-mode" id="probe-mode"></p>
-  </aside>
 </main>
 
 <!-- Bottom sheet ------------------------------------------------------------>
