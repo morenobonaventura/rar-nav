@@ -3,7 +3,7 @@
  * the event wiring live in app.js.
  */
 
-import { fmtBearing, fmtDistance, fmtDuration, fmtClock, norm360 } from "./nav.js";
+import { fmtBearing, fmtDistance, fmtDuration, fmtClock } from "./nav.js";
 
 const el = (tag, cls, text) => {
   const n = document.createElement(tag);
@@ -71,7 +71,7 @@ export function renderLegs(list, rows, activeIndex, onSelect) {
 }
 
 /** Fill the tapped-point readout. */
-export function fillProbe(refs, leg, title, point, variation) {
+export function fillProbe(refs, leg, title, point) {
   refs.name.textContent = title;
   refs.pos.textContent = `${fmtLat(point.lat)} ${fmtLon(point.lon)}`;
   refs.dist.textContent = fmtDistance(leg.distNm);
@@ -86,44 +86,14 @@ export function fillProbe(refs, leg, title, point, variation) {
     refs.etaLabel.textContent = leg.eta ? `arrive ${fmtClock(leg.eta)}` : "time to go";
   }
 
+  // Warnings only. The readout states the numbers and stops: a paragraph of
+  // prose is not something anyone reads off a phone clipped to a bulkhead.
   refs.mode.className = "probe-mode";
-  if (leg.warnings.length) {
-    refs.mode.classList.add("warn");
-    refs.mode.textContent = leg.warnings[0];
-    return;
-  }
-  refs.mode.textContent = describe(leg, variation);
+  refs.mode.hidden = !leg.warnings.length;
+  refs.mode.classList.toggle("warn", leg.warnings.length > 0);
+  refs.mode.textContent = leg.warnings[0] ?? "";
 }
 
-/** One sentence saying how to sail this leg. */
-export function describe(leg, variation) {
-  if (leg.mode === "unreachable") return "The tide sets you back faster than you can sail.";
-  const [a, b] = leg.legs;
-  const speed = (l) => `${l.boatSpeed.toFixed(1)} kn`;
-  if (leg.legs.length === 1) {
-    const steer = Math.abs(norm360(a.headingTrue) - norm360(leg.bearingTrue)) > 0.5;
-    const crab = steer
-      ? ` Steer ${fmtBearing(a.headingTrue)}T / ${fmtBearing(a.headingMag)}M to hold the track.`
-      : "";
-    return `${modeLabel(leg)} at TWA ${Math.round(Math.abs(a.twa))}°, ${speed(a)}, ${a.sog.toFixed(1)} kn over ground.${crab}`;
-  }
-  const word = leg.mode === "beat" ? "Tack" : leg.mode === "run" ? "Gybe" : "Alternate";
-  const pct = Math.round(a.fraction * 100);
-  // Where the two laylines meet, if the track has been worked out.
-  const corner = leg.paths?.[0];
-  // The corner is the LAYLINE, and sailing out to it is usually a mistake: you
-  // arrive with no options and any overstand is pure loss. Say limit, not plan.
-  const turn = corner?.tackAfterNm
-    ? ` On the ${corner.boards[0].tack} board the layline is ` +
-      `${fmtDistance(corner.tackAfterNm)} out (${fmtDuration(corner.tackAfterHours)}) — ` +
-      `${word.toLowerCase()} before it, not at it. Dotted is the other side, same ETA.`
-    : "";
-  return (
-    `${word} between ${fmtBearing(a.headingTrue)}T (${a.tack}, ${speed(a)}) and ` +
-    `${fmtBearing(b.headingTrue)}T (${b.tack}, ${speed(b)}) — ` +
-    `${pct}% of the time on the first. Made good ${leg.vmc.toFixed(1)} kn.${turn}`
-  );
-}
 
 const fmtLat = (v) => `${Math.abs(v).toFixed(4)}°${v >= 0 ? "N" : "S"}`;
 const fmtLon = (v) => `${Math.abs(v).toFixed(4)}°${v >= 0 ? "E" : "W"}`;
