@@ -26,9 +26,16 @@ The app plays the track into `Gps.onFix` in the shape the browser's geolocation
 would, so nothing downstream knows the difference — an instrument tested through
 a special "test mode" is an instrument you have not tested. Time runs at 30×.
 
-Tracks are **not committed**. Regenerate them from the seed: a fixture on disk
-goes stale the first time the boat model improves while still looking
-authoritative. Tests never read them, calling `makeTrack()` directly instead.
+On the deployed site there is a launcher at
+[`/sim/`](https://morenobonaventura.github.io/rar-nav/sim/), which lists the
+scenarios from `data/tracks/index.json` and links into each one — the practical
+way to exercise this on an actual phone, where the interesting failures live.
+
+Tracks **are** committed, reluctantly and only so that launcher works: Pages
+deploys the repo as it stands. They are still generated artefacts, so regenerate
+rather than edit them, and treat the seed as the thing worth keeping. Tests
+never read them, calling `makeTrack()` directly instead — a fixture on disk goes
+stale the first time the boat model improves while still looking authoritative.
 
 ## The pieces
 
@@ -123,7 +130,14 @@ persisted. Simulation is the same hazard and worse, because it looks alive.
   GPS chip and the Position button stand down — there is no GPS running and they
   have nothing true to report.
 - `js/sim.js` is dynamically imported and **not** in the service worker's
-  precache list, so offline it is absent rather than merely disabled.
+  precache list, so offline it is absent rather than merely disabled. Neither
+  are the tracks, so on the water the fetch fails and the app carries on as an
+  instrument.
+- **Never inside the installed app.** Publishing the tracks alongside the real
+  thing makes a stale bookmark a genuine hazard, and "refuses over a real fix"
+  does not cover a cold start where no fix has arrived yet. So a home-screen
+  launch (`display-mode: standalone`, or `navigator.standalone` on iOS) refuses
+  outright. The icon is what goes to sea; a browser tab is what tests.
 
 ## Still open
 

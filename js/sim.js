@@ -115,6 +115,16 @@ export async function maybeStart(gps, { search = location.search, onTick } = {})
   if (!name) return null;
   if (!/^[a-z0-9-]+$/.test(name)) return null;
 
+  // Never in the installed app. Once the tracks are deployed alongside the
+  // real thing, a stale bookmark or a shared link is a genuine hazard, and
+  // "refuses over a real fix" does not cover a cold start where no fix has
+  // arrived yet. The home-screen icon is what goes to sea; a browser tab is
+  // what tests. That line is worth more than any in-app warning.
+  const installed =
+    globalThis.matchMedia?.("(display-mode: standalone)")?.matches ||
+    globalThis.navigator?.standalone === true;
+  if (installed) return null;
+
   const res = await fetch(`data/tracks/${name}.json`).catch(() => null);
   if (!res?.ok) return null;
 

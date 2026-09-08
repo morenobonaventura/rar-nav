@@ -1,0 +1,42 @@
+[
+ {
+  "name": "beat-oscillating",
+  "what": "Beat, breeze oscillating +/-12 deg on a 6 min cycle",
+  "proves": "HEADED appears on the headed board within ~60 s of each shift, and lifted on the other"
+ },
+ {
+  "name": "beat-oscillating-wrong-wind",
+  "what": "The same beat, to be read by an app whose TWD is 25 deg wrong",
+  "proves": "Identical verdicts and sizes to beat-oscillating: the typed wind cannot corrupt it"
+ },
+ {
+  "name": "tack",
+  "what": "Steady breeze, one tack ten minutes in",
+  "proves": "The detector goes quiet across the tack and stays quiet until it has a baseline"
+ },
+ {
+  "name": "wander-steady",
+  "what": "Steady breeze, helm wandering +/-12 deg",
+  "proves": "steady throughout. NO header is ever called on a wave. The one that matters most"
+ },
+ {
+  "name": "persistent-veer",
+  "what": "A 30 deg veer over 20 minutes, and it stays",
+  "proves": "Headed on one board for the duration, not a flicker in and out"
+ },
+ {
+  "name": "reach-shifting",
+  "what": "Beam reach on a compass course, same shifting breeze",
+  "proves": "Silence. Off the wind COG follows the helm, not the weather"
+ },
+ {
+  "name": "layline-approach",
+  "what": "Steering at Alicudi from open water, in a foul tide",
+  "proves": "Distance falls monotonically and the ETA converges; no jump backwards"
+ },
+ {
+  "name": "near-calm",
+  "what": "TWS 3 kn, below the polar's 6 kn floor",
+  "proves": "Every speed on screen is a clamp, and nothing currently says so"
+ }
+]
