@@ -16,6 +16,8 @@
 
 export const KN_PER_MS = 1.943844;
 
+import { clock } from "./clock.js";
+
 const D2R = Math.PI / 180;
 const R2D = 180 / Math.PI;
 const EARTH_NM = 3440.065; // mean earth radius in nautical miles
@@ -162,7 +164,7 @@ export function meanBearing(degrees) {
  *
  * @returns null when it cannot honestly say, else {tack, shiftDeg, state, ...}
  */
-export function shiftFromCog(samples, twd, now = Date.now(), opts = {}) {
+export function shiftFromCog(samples, twd, now = clock.now(), opts = {}) {
   const { recentMs = 60000, minRun = 8, minRecent = 3, minShiftDeg = 4,
           minSogKn = 1.0, maxTwaDeg = 70 } = opts;
 
@@ -550,7 +552,7 @@ export function tackPath(from, to, leg, currentCog = null) {
  * Conditions are held constant: this is a "what I see right now" instrument, not
  * a forecast router.
  */
-export function solveRoute(start, points, wind, current, polar, variation, now = Date.now()) {
+export function solveRoute(start, points, wind, current, polar, variation, now = clock.now()) {
   let from = start;
   let cumNm = 0;
   let cumHours = 0;
