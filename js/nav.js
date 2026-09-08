@@ -123,6 +123,93 @@ export function vmgToWind(sog, cog, twd) {
   return sog * Math.cos(angDiff(twd, cog) * D2R);
 }
 
+/** Mean of a set of bearings, averaged as unit vectors rather than as numbers. */
+export function meanBearing(degrees) {
+  let e = 0, n = 0;
+  for (const d of degrees) { e += Math.sin(d * D2R); n += Math.cos(d * D2R); }
+  return degrees.length ? norm360(Math.atan2(e, n) * R2D) : null;
+}
+
+/**
+ * Header or lift on the tack you are on, read from COG alone.
+ *
+ * Tack on headers is the oldest rule in the book, and the only reason this app
+ * cannot follow it is that its wind is a number you typed, held constant --
+ * so it can never show you a shift. But it does not have to. On a beat the helm
+ * holds a roughly constant TWA, which makes COG nothing but the wind direction
+ * plus a constant: let the wind veer ten degrees and your course over ground
+ * veers ten degrees with it. So the shift is IN the GPS track, and needs no
+ * wind input at all.
+ *
+ * TWD still decides which tack you are on, but only through the sign of the
+ * wind angle -- you would have to be some forty degrees out before that flips.
+ * The magnitude of the shift never touches it. That is the whole point: this is
+ * the one tactical reading in the app that a mistyped wind cannot corrupt.
+ *
+ * Which way is bad depends on the tack. Let the wind veer right: on port you
+ * can point higher and it is a LIFT; on starboard the same shift pushes your
+ * bow away from the mark and it is a HEADER. Since positive TWA is port tack,
+ *
+ *     headed = -sign(twa) x (change in COG)
+ *
+ * with a positive result meaning headed, and headed means tack.
+ *
+ * Only samples since the last tack are compared -- a tack is a 90 degree change
+ * in COG that has nothing to do with the wind, and averaging across one would
+ * report a shift that never happened. The recent window is measured against the
+ * rest of that run, and anything smaller than the track's own wander is called
+ * steady rather than dressed up as a shift.
+ *
+ * @returns null when it cannot honestly say, else {tack, shiftDeg, state, ...}
+ */
+export function shiftFromCog(samples, twd, now = Date.now(), opts = {}) {
+  const { recentMs = 60000, minRun = 8, minRecent = 3, minShiftDeg = 4,
+          minSogKn = 1.0, maxTwaDeg = 70 } = opts;
+
+  const usable = samples.filter(
+    (s) => s.cog != null && !Number.isNaN(s.cog) && (s.sog ?? 0) >= minSogKn
+  );
+  if (usable.length < minRun) return null;
+
+  const last = usable[usable.length - 1];
+  // Close-hauled only. Off the wind COG follows the helm's chosen course, not
+  // the breeze, so the same arithmetic would read steering as weather.
+  const twaNow = angDiff(last.cog, twd);
+  if (Math.abs(twaNow) > maxTwaDeg) return null;
+
+  const tackOf = (s) => (angDiff(s.cog, twd) > 0 ? 1 : -1); // +1 port, -1 starboard
+  const sign = tackOf(last);
+  let i = usable.length - 1;
+  while (i > 0 && tackOf(usable[i - 1]) === sign) i--;
+  const run = usable.slice(i);
+  if (run.length < minRun) return null; // still settling after a tack
+
+  const recent = run.filter((s) => now - s.t <= recentMs);
+  const base = run.slice(0, run.length - recent.length);
+  if (recent.length < minRecent || base.length < minRecent) return null;
+
+  const shiftDeg = -sign * angDiff(meanBearing(recent.map((s) => s.cog)),
+                                  meanBearing(base.map((s) => s.cog)));
+
+  // The boat's own wander sets the floor: steering and sea state move COG about
+  // regardless of the wind, and calling that a shift would have you tacking on
+  // waves.
+  const mean = meanBearing(run.map((s) => s.cog));
+  const wander = Math.sqrt(
+    run.reduce((a, s) => a + angDiff(s.cog, mean) ** 2, 0) / run.length
+  );
+  const floor = Math.max(minShiftDeg, wander * 0.75);
+
+  return {
+    tack: sign > 0 ? "port" : "starboard",
+    shiftDeg,
+    state: Math.abs(shiftDeg) < floor ? "steady" : shiftDeg > 0 ? "headed" : "lifted",
+    wander,
+    sinceMs: now - run[0].t,
+    n: run.length,
+  };
+}
+
 // --- polar -----------------------------------------------------------------
 
 export class Polar {
