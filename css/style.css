@@ -30,6 +30,9 @@
   --warn: #b25000;
   --shadow: 0 1px 0 rgba(20, 32, 43, .06), 0 6px 20px rgba(20, 32, 43, .10);
   --tap: 48px;
+  /* The chart holds this height whatever else is on screen. Showing the
+     tapped-point band must not resize the map under the hand that tapped it. */
+  --map-h: 40vh;
   color-scheme: light;
 }
 
@@ -68,7 +71,7 @@ html, body {
 body {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto auto var(--map-h) minmax(0, 1fr);
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
 
@@ -77,6 +80,7 @@ body {
 .probe { grid-row: 3; }
 .map-wrap { grid-row: 4; }
 .sheet { grid-row: 5; }
+body:has(.sheet[data-state="open"]) { --map-h: 20vh; }
 
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 
@@ -192,6 +196,8 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .probe {
   position: relative;
   padding: 8px 12px 10px;
+  max-height: 36vh;
+  overflow-y: auto;
   background: var(--paper);
   border-bottom: 1px solid var(--rule);
 }
@@ -222,8 +228,6 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   transition: max-height .22s ease;
   overflow: hidden;
 }
-.sheet[data-state="peek"] { max-height: 246px; }
-.sheet[data-state="open"] { max-height: 64vh; }
 /* The attribution and the placeholder-marks warning matter, but not enough to
    eat the two leg rows the peek state exists to show. */
 .sheet[data-state="peek"] .disclaimer { display: none; }
