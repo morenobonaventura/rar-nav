@@ -315,6 +315,37 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 
 .disclaimer { margin: 0; padding: 8px 14px calc(10px + env(safe-area-inset-bottom)); font-size: 11px; color: var(--ink-soft); border-top: 1px solid var(--rule); }
 
+/* Landscape --------------------------------------------------------------- */
+
+/* Keyed on height, not orientation: what breaks the stacked layout is having
+   under ~560 px to divide, whether that is a phone on its side or a short
+   window. Five bands in 390 px leaves the chart a letterbox strip and, with a
+   point tapped, crushes the sheet to ten pixels. So the chart moves alongside
+   and takes the full height, and everything that reads as text goes in a
+   column beside it. */
+@media (max-height: 560px) {
+  body {
+    grid-template-columns: minmax(0, 1fr) min(46vw, 360px);
+    grid-template-rows: auto auto auto minmax(0, 1fr);
+  }
+  .map-wrap { grid-column: 1; grid-row: 1 / -1; border-right: 1px solid var(--rule); }
+  .rail { grid-column: 2; grid-row: 1; }
+  .head { grid-column: 2; grid-row: 2; }
+  .probe { grid-column: 2; grid-row: 3; max-height: 45vh; }
+  /* Four figures across a 360 px column breaks "25.1 nm" over two lines. */
+  .probe-grid { grid-template-columns: repeat(2, 1fr); }
+  .sheet { grid-column: 2; grid-row: 4; border-top: 0; }
+
+  /* The sheet owns its column's leftovers here, so there is no peek to expand
+     into and the grip has nothing to do. */
+  .grip { display: none; }
+  .sheet[data-state="peek"] .disclaimer { display: block; }
+
+  /* The figures have a narrower column and no longer need to carry the screen. */
+  .gauge-value { font-size: clamp(22px, 4.4vw, 30px); }
+  .map-buttons { bottom: 10px; right: 10px; }
+}
+
 /* Panels -------------------------------------------------------------------*/
 
 .scrim { position: fixed; inset: 0; background: rgba(20, 32, 43, .38); z-index: 900; }
