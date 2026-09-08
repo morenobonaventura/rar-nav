@@ -44,7 +44,22 @@ export class Sim {
     this.rate = Math.min(60, Math.max(1, rate));
     this.i = 0;
     this.timer = null;
-    this.onEnd = null;
+    this.onTick = null;
+  }
+
+  /** Seconds of boat time played, and in the track altogether. */
+  get elapsedSec() {
+    const s = this.track.samples[Math.max(0, this.i - 1)];
+    return s ? (s.t - this.track.samples[0].t) / 1000 : 0;
+  }
+
+  get totalSec() {
+    const a = this.track.samples;
+    return a.length ? (a[a.length - 1].t - a[0].t) / 1000 : 0;
+  }
+
+  get running() {
+    return this.timer != null;
   }
 
   get name() {
@@ -62,13 +77,51 @@ export class Sim {
     gps.stop();          // no satellites while the simulation is in charge
     gps.clearHistory();  // and no real samples left in the buffer to blend with
 
+    this.onTick = onTick ?? null;
+    this.tick();
+    return this.resume();
+  }
+
+  /** Start or restart the timer at the current rate. */
+  resume() {
+    if (this.done) return this;
+    clearInterval(this.timer);
     const step = this.track.meta?.stepSec ?? 5;
-    this.timer = setInterval(() => this.tick(onTick), (step * 1000) / this.rate);
-    this.tick(onTick);
+    this.timer = setInterval(() => this.tick(), (step * 1000) / this.rate);
+    this.onTick?.(this);
     return this;
   }
 
-  tick(onTick) {
+  pause() {
+    clearInterval(this.timer);
+    this.timer = null;
+    this.onTick?.(this);
+    return this;
+  }
+
+  setRate(rate) {
+    this.rate = Math.min(60, Math.max(1, rate));
+    return this.running ? this.resume() : this;
+  }
+
+  /**
+   * Back to the first fix.
+   *
+   * The GPS history is append-only and the app has no notion of time running
+   * backwards, so this rebuilds rather than rewinds: clear the buffer and play
+   * again from the start. Cheap, and it cannot leave half of an old run mixed
+   * into a new one.
+   */
+  restart() {
+    this.pause();
+    this.i = 0;
+    this.gps.clearHistory();
+    this.gps.fix = null;
+    this.tick();
+    return this.resume();
+  }
+
+  tick() {
     const s = this.track.samples[this.i++];
     if (!s) return this.stop();
 
@@ -78,6 +131,10 @@ export class Sim {
 
     this.gps.onFix({
       timestamp: s.t,
+      // Not part of a GeolocationPosition. The app reads it only while a
+      // simulation is running, so the breeze on screen is the breeze the boat
+      // is actually sailing in.
+      wind: s.wind,
       coords: {
         latitude: s.lat,
         longitude: s.lon,
@@ -88,13 +145,13 @@ export class Sim {
         heading: s.cog ?? null,
       },
     });
-    onTick?.(this.i, this.track.samples.length);
+    this.onTick?.(this, s);
   }
 
   stop() {
     clearInterval(this.timer);
     this.timer = null;
-    this.onEnd?.();
+    this.onTick?.(this);
     return this;
   }
 

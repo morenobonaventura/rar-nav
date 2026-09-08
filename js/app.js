@@ -47,7 +47,7 @@ const state = {
 
 const gps = new Gps();
 const wake = new Wake();
-let map, coastLayer, courseLayer, boatLayer, probeLayer, field;
+let map, coastLayer, courseLayer, boatLayer, probeLayer, field, simTrail;
 
 // --- boot ------------------------------------------------------------------
 
@@ -340,7 +340,17 @@ function onGps() {
     $("fix-text").textContent = "Waiting for a GPS fix";
   }
 
+  if (state.sim && fix?.wind) {
+    // Follow the simulation's own breeze. A conditions panel frozen at 310/12
+    // while the boat is visibly being headed reads as a broken app; and the
+    // claim that a mistyped wind cannot corrupt the verdict is the tests' job,
+    // not this one -- they pass their own error and never come through here.
+    state.wind = { twd: fix.wind.twd, tws: fix.wind.tws };
+    syncConditionInputs();
+  }
+
   boatLayer.update(fix);
+  drawSimTrail(fix);
   recompute(); // draws the instruments
   if ($("panel-history").open) drawHistory();
 }
@@ -350,6 +360,18 @@ function onGps() {
  * GPS alone: VMG depends on the wind as well as the fix, so editing the wind
  * has to move it, and a stale VMG next to a live SOG would be read as fact.
  */
+/** Where the simulated boat has been. Nothing draws this for a real fix: on
+ *  the water the track is the boat's own business and the chart is for what is
+ *  ahead, but in a simulation it is the clearest evidence of motion there is. */
+function drawSimTrail(fix) {
+  if (!state.sim || !fix) return;
+  simTrail ??= L.polyline([], {
+    color: getComputedStyle(document.body).getPropertyValue("--warn").trim(),
+    weight: 2, opacity: 0.75, dashArray: "1 4", lineCap: "round",
+  }).addTo(map);
+  simTrail.addLatLng([fix.lat, fix.lon]);
+}
+
 function drawInstruments() {
   const fix = boatFix();
   const vmg = vmgToWind(fix?.sog ?? null, fix?.cog ?? null, state.wind.twd);
@@ -728,14 +750,46 @@ async function startSimulationIfAsked() {
   if (!new URLSearchParams(location.search).get("sim")) return;
   try {
     const { maybeStart } = await import("./sim.js");
-    const sim = await maybeStart(gps);
+    const sim = await maybeStart(gps, { onTick: drawSimbar });
     if (!sim) return;
     state.sim = sim.name;
+    state.simRun = sim;
     $("simbadge").hidden = false;
+    $("simbar").hidden = false;
+    wireSimbar(sim);
+
+    // The chart is fitted to a 122 nm course while a scenario covers three or
+    // four. At that scale an hour of sailing moves the boat a couple of pixels
+    // and the simulation looks frozen, so it opens zoomed to the boat instead.
+    const fix = gps.fix;
+    if (fix) map.setView([fix.lat, fix.lon], 12);
     onGps();
   } catch {
     /* no simulator on the boat: the app is an instrument first */
   }
+}
+
+function wireSimbar(sim) {
+  $("sim-play").addEventListener("click", () => (sim.running ? sim.pause() : sim.resume()));
+  $("sim-restart").addEventListener("click", () => { simTrail?.setLatLngs([]); sim.restart(); });
+  $("sim-rate").addEventListener("change", (e) => sim.setRate(Number(e.target.value)));
+}
+
+const clockHM = (sec) =>
+  `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, "0")}`;
+
+/** Called on every fix the simulator feeds, and on every transport change. */
+function drawSimbar(sim) {
+  const done = sim.done;
+  $("sim-fill").style.width = `${(sim.elapsedSec / (sim.totalSec || 1)) * 100}%`;
+  $("sim-time").textContent = done
+    ? `ended · ${clockHM(sim.totalSec)}`
+    : `${clockHM(sim.elapsedSec)} / ${clockHM(sim.totalSec)}`;
+  // A finished track otherwise looks exactly like a running one that has
+  // stopped updating: same badge, same frozen numbers, no way to tell.
+  $("simbar").classList.toggle("ended", done);
+  $("sim-play").textContent = sim.running ? "\u275A\u275A" : "\u25B6";
+  $("sim-play").setAttribute("aria-label", sim.running ? "Pause" : "Play");
 }
 
 function registerServiceWorker() {

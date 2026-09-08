@@ -285,9 +285,15 @@ if (process.argv[1] && process.argv[1].endsWith("make_track.js")) {
     const scn = SCENARIOS[name];
     if (!scn) { console.error(`no such scenario: ${name}`); process.exit(1); }
     const track = applyFaults(makeTrack(scn, p), scn.faults);
-    // The player does not need the boat's private truth, and shipping it would
-    // invite someone to read the answer off the track instead of the screen.
-    const slim = { ...track, samples: track.samples.map(({ truth, ...s }) => s) };
+    // The wind ships, so the player can show a world where the breeze moves;
+    // the boat's heading, TWA and tack do not, because those are the answers
+    // the instrument is supposed to work out for itself.
+    const slim = {
+      ...track,
+      samples: track.samples.map(({ truth, ...s }) => ({
+        ...s, wind: { twd: +truth.twd.toFixed(2), tws: +truth.tws.toFixed(2) },
+      })),
+    };
     const file = join(out, `${name}.json`);
     writeFileSync(file, JSON.stringify(slim));
     console.log(`${name}: ${track.samples.length} samples, ` +

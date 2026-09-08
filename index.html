@@ -30,6 +30,20 @@
   </div>
 </header>
 
+<!-- Simulation transport (hidden unless ?sim=) ------------------------------>
+<section class="simbar" id="simbar" hidden>
+  <button id="sim-play" type="button" class="simbtn" aria-label="Pause">&#10073;&#10073;</button>
+  <button id="sim-restart" type="button" class="simbtn" aria-label="Back to the start">&#8634;</button>
+  <div class="simprog"><div class="simprog-fill" id="sim-fill"></div></div>
+  <time id="sim-time">0:00 / 0:00</time>
+  <select id="sim-rate" aria-label="Playback speed">
+    <option value="1">1&times;</option>
+    <option value="10">10&times;</option>
+    <option value="30" selected>30&times;</option>
+    <option value="60">60&times;</option>
+  </select>
+</section>
+
 <!-- Instrument head --------------------------------------------------------->
 <section class="head">
   <button class="gauge" id="gauge-sog" type="button">
