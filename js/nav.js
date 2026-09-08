@@ -166,7 +166,7 @@ export function meanBearing(degrees) {
  */
 export function shiftFromCog(samples, twd, now = clock.now(), opts = {}) {
   const { recentMs = 60000, minRun = 8, minRecent = 3, minShiftDeg = 4,
-          minSogKn = 1.0, maxTwaDeg = 70 } = opts;
+          minSogKn = 1.0, maxTwaDeg = 80, noiseK = 3 } = opts;
 
   const usable = samples.filter(
     (s) => s.cog != null && !Number.isNaN(s.cog) && (s.sog ?? 0) >= minSogKn
@@ -193,24 +193,76 @@ export function shiftFromCog(samples, twd, now = clock.now(), opts = {}) {
   const shiftDeg = -sign * angDiff(meanBearing(recent.map((s) => s.cog)),
                                   meanBearing(base.map((s) => s.cog)));
 
-  // The boat's own wander sets the floor: steering and sea state move COG about
-  // regardless of the wind, and calling that a shift would have you tacking on
-  // waves.
-  const mean = meanBearing(run.map((s) => s.cog));
-  const wander = Math.sqrt(
-    run.reduce((a, s) => a + angDiff(s.cog, mean) ** 2, 0) / run.length
-  );
-  const floor = Math.max(minShiftDeg, wander * 0.75);
+  // The floor has to come from the boat's own wander, and the first version of
+  // this got it badly wrong -- it compared the shift against the raw spread of
+  // COG, which is not the uncertainty of a MEAN. Simulation showed why that
+  // matters: a helm does not jitter, it drifts, so the samples are heavily
+  // autocorrelated, and thirteen of them carry the information of about one.
+  // On a wandering helm the standard error of a one-minute mean is nine or ten
+  // degrees while the old floor sat at seven, so the detector spent a steady
+  // breeze calling headers on the helm. See tests/sim.test.js.
+  const noise = meanError(recent, base);
+  const floor = Math.max(minShiftDeg, noiseK * noise);
 
   return {
     tack: sign > 0 ? "port" : "starboard",
     shiftDeg,
     state: Math.abs(shiftDeg) < floor ? "steady" : shiftDeg > 0 ? "headed" : "lifted",
-    wander,
+    noise,
+    floor,
     sinceMs: now - run[0].t,
     n: run.length,
   };
 }
+
+/**
+ * How far the difference of two windows' mean headings could move on noise
+ * alone -- the yardstick a claimed shift has to beat.
+ *
+ * Getting this right took three attempts and a simulator, so the two wrong
+ * turns are worth recording.
+ *
+ * The first version compared the shift against the raw spread of COG. But that
+ * is the spread of the SAMPLES, not the uncertainty of their MEAN, and the two
+ * differ by more than the usual sqrt(n) here: a helm does not jitter, it drifts
+ * off and comes back over half a minute, so consecutive fixes are correlated
+ * and thirteen of them carry the information of about one. On a wandering helm
+ * the standard error of a one-minute mean is nine degrees while that floor sat
+ * at seven, and the detector spent a steady breeze calling headers.
+ *
+ * The second version detrended each window before measuring it, to stop a real
+ * shift inflating the noise estimate. That is right for the long window and
+ * exactly wrong for the short one, where the wander IS the trend -- removing it
+ * left almost no noise at all and the floor collapsed.
+ *
+ * What actually separates helm from weather is the timescale. A helm moves the
+ * boat between one fix and the next; a wind shift does not, it moves it over
+ * minutes. So the noise is measured from FIRST DIFFERENCES, which see the
+ * wander and are nearly blind to the shift, and then turned into the error of a
+ * mean through the AR(1) relations
+ *
+ *     var(step) = 2 sigma^2 (1 - rho),   var(mean of n) = sigma^2 (1+rho) / ((1-rho) n)
+ *
+ * `rho` is assumed rather than fitted: at 5 s sampling and a helm that takes
+ * about half a minute to notice it has wandered, rho is near 0.85, and fitting
+ * it from data this short mostly fits the shift.
+ */
+function meanError(recent, base, rho = 0.85) {
+  const all = [...base, ...recent];
+  let v = 0, n = 0;
+  for (let i = 1; i < all.length; i++) {
+    // A gap is the app having been suspended, not the boat having swerved.
+    if (all[i].t - all[i - 1].t > 15000) continue;
+    v += angDiff(all[i].cog, all[i - 1].cog) ** 2;
+    n++;
+  }
+  if (!n) return Infinity;
+
+  const sigma2 = v / n / (2 * (1 - rho));
+  const meanVar = (m) => (sigma2 * (1 + rho)) / ((1 - rho) * Math.max(1, m));
+  return Math.sqrt(meanVar(recent.length) + meanVar(base.length));
+}
+
 
 // --- polar -----------------------------------------------------------------
 
