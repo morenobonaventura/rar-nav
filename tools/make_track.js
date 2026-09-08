@@ -162,6 +162,97 @@ export function makeTrack(scn, p = polar()) {
   };
 }
 
+/**
+ * Everything an iPhone does on a boat that a clean track does not.
+ *
+ * Step 4 of SIMULATION.md. Each of these has a code path in the app that has
+ * been reasoned about and never once run, which is the same as saying it has
+ * never been tested -- and the day it first runs is the day the app is 30 miles
+ * offshore with no way to reload it.
+ *
+ * Applied as a pass over a finished track rather than inside the boat model,
+ * because none of them are things the BOAT does. The boat sails on; it is the
+ * phone that loses the fix, the chip that stops reporting heading, and the
+ * receiver that decides it is now accurate to 60 metres.
+ *
+ * @param {object} track from makeTrack
+ * @param {Array<{kind, fromSec, toSec, ...}>} faults
+ */
+export function applyFaults(track, faults = []) {
+  if (!faults.length) return track;
+  const t0 = track.samples[0].t;
+  const within = (s, f) => {
+    const at = (s.t - t0) / 1000;
+    return at >= f.fromSec && at <= (f.toSec ?? f.fromSec);
+  };
+
+  let samples = track.samples.map((s) => ({ ...s }));
+  for (const f of faults) {
+    switch (f.kind) {
+      // The app was backgrounded, or the screen locked. iOS suspends a web app
+      // outright, so these samples were never taken -- the gap is real, and the
+      // charts must draw it as a gap rather than a smooth line across a hole.
+      case "dropout":
+        samples = samples.filter((s) => !within(s, f));
+        break;
+
+      // The GPS chip's doppler solution goes null when it feels like it. The
+      // app is supposed to fall back to differencing successive fixes.
+      case "nullSpeed":
+        samples.forEach((s) => { if (within(s, f)) s.sog = null; });
+        break;
+      case "nullHeading":
+        samples.forEach((s) => { if (within(s, f)) s.cog = null; });
+        break;
+
+      // A poor fix is still a fix, and the rail is supposed to say so.
+      case "accuracy":
+        samples.forEach((s) => { if (within(s, f)) s.accuracy = f.metres ?? 60; });
+        break;
+
+      // A multipath spike off a cliff. Nothing in the app filters these yet;
+      // this exists so that stays a known gap rather than a surprise.
+      case "jump":
+        samples.forEach((s) => {
+          if (!within(s, f)) return;
+          const nm = (f.metres ?? 200) / 1852;
+          s.lat += nm / 60;
+          s.lon += nm / 60 / Math.cos((s.lat * Math.PI) / 180);
+        });
+        break;
+
+      // Parked in a hole, or hove to. Below a knot the heading is meaningless
+      // and the app is supposed to hold the last good one rather than swing.
+      //
+      // The boat has to actually STOP, not merely report a low speed. The first
+      // version only zeroed the speed field and left the positions marching on
+      // at six knots, so the app's differencing fallback dutifully derived a
+      // heading from them and the test failed -- correctly. Everything after
+      // the window is shifted by the ground the boat did not cover, so it
+      // resumes from where it really is instead of teleporting.
+      case "becalmed": {
+        const held = samples.find((s) => within(s, f));
+        if (!held) break;
+        let last = held;
+        for (const s of samples) {
+          if (within(s, f)) { s.sog = 0.2; last = { lat: s.lat, lon: s.lon }; s.lat = held.lat; s.lon = held.lon; }
+        }
+        const dLat = last.lat - held.lat, dLon = last.lon - held.lon;
+        let past = false;
+        for (const s of samples) {
+          if (within(s, f)) { past = true; continue; }
+          if (past) { s.lat -= dLat; s.lon -= dLon; }
+        }
+        break;
+      }
+
+      default:
+        throw new Error(`unknown fault: ${f.kind}`);
+    }
+  }
+  return { ...track, meta: { ...track.meta, faults }, samples };
+}
+
 /** Distance made good from first sample to last, for sanity in tests. */
 export const trackDistanceNm = (track) =>
   haversineNm(track.samples[0], track.samples[track.samples.length - 1]);
@@ -184,7 +275,7 @@ if (process.argv[1] && process.argv[1].endsWith("make_track.js")) {
   for (const name of names) {
     const scn = SCENARIOS[name];
     if (!scn) { console.error(`no such scenario: ${name}`); process.exit(1); }
-    const track = makeTrack(scn, p);
+    const track = applyFaults(makeTrack(scn, p), scn.faults);
     // The player does not need the boat's private truth, and shipping it would
     // invite someone to read the answer off the track instead of the screen.
     const slim = { ...track, samples: track.samples.map(({ truth, ...s }) => s) };

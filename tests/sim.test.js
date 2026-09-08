@@ -13,9 +13,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { makeTrack, polar } from "../tools/make_track.js";
+import { makeTrack, applyFaults, polar } from "../tools/make_track.js";
 import { SCENARIOS } from "../tools/scenarios.js";
 import { shiftFromCog, haversineNm, angDiff } from "../js/nav.js";
+import { Gps, WINDOW_MS } from "../js/gps.js";
+import { clock, resetClock } from "../js/clock.js";
 
 const p = polar();
 const SEEDS = [11, 12, 13, 14, 15, 16, 17, 18];
@@ -166,4 +168,92 @@ test("the polar floor is silently clamping the whole near-calm run", () => {
   const moving = track.samples.filter((s) => s.sog > 3).length;
   assert.ok(moving / track.samples.length > 0.9,
     "the boat sails on regardless, at a speed the polar cannot support");
+});
+
+// --- the faults -------------------------------------------------------------
+
+/**
+ * Play a track through the real Gps class, on the sim clock, exactly as
+ * js/sim.js does. Testing the fallbacks through anything else would be testing
+ * a copy of the app rather than the app.
+ */
+function play(track) {
+  const gps = new Gps();
+  gps.samples = [];
+  for (const s of track.samples) {
+    clock.now = () => s.t;
+    gps.onFix({
+      timestamp: s.t,
+      coords: {
+        latitude: s.lat, longitude: s.lon, accuracy: s.accuracy ?? 8,
+        speed: s.sog == null ? null : s.sog / 1.943844,
+        heading: s.cog ?? null,
+      },
+    });
+  }
+  const last = track.samples[track.samples.length - 1];
+  const history = gps.history(last.t);
+  resetClock();
+  return { gps, history };
+}
+
+test("a suspended app leaves a gap the history owns up to", () => {
+  // iOS suspends a web app the moment it is backgrounded. The charts must draw
+  // that as a hole rather than a smooth line across data nobody collected.
+  const scn = { ...SCENARIOS["beat-oscillating"], durationSec: 8 * 60 };
+  const clean = play(makeTrack(scn, p)).history;
+  const gapped = play(applyFaults(makeTrack(scn, p),
+    [{ kind: "dropout", fromSec: 300, toSec: 390 }])).history;
+
+  assert.equal(clean.gapMs, 0, "a clean track should report no gap");
+  assert.ok(gapped.gapMs >= 90000, `a 90 s dropout reported as ${gapped.gapMs} ms`);
+});
+
+test("the chip going null is covered by differencing successive fixes", () => {
+  // coords.speed and coords.heading go null whenever the GPS feels like it.
+  // gps.js falls back to differencing positions; until now nothing had ever
+  // fed that path a realistic stream.
+  const scn = { ...SCENARIOS["beat-oscillating"], durationSec: 8 * 60 };
+  const { history } = play(applyFaults(makeTrack(scn, p), [
+    { kind: "nullSpeed", fromSec: 120, toSec: 300 },
+    { kind: "nullHeading", fromSec: 120, toSec: 300 },
+  ]));
+
+  const blind = history.samples.filter((s) => s.t - history.samples[0].t > 130000);
+  assert.ok(blind.length > 10, "not enough samples in the blind window");
+  assert.ok(blind.every((s) => s.cog != null), "COG went missing instead of being derived");
+  assert.ok(blind.every((s) => s.sog > 1), "SOG went missing instead of being derived");
+});
+
+test("below a knot the heading is held, not swung about", () => {
+  // A heading is meaningless when stopped, and a swinging COG would look to
+  // the shift detector exactly like a wind that had gone mad.
+  const scn = { ...SCENARIOS["beat-oscillating"], durationSec: 8 * 60 };
+  const track = applyFaults(makeTrack(scn, p), [
+    { kind: "becalmed", fromSec: 240, toSec: 420 },
+    { kind: "nullHeading", fromSec: 240, toSec: 420 },
+  ]);
+  const { history } = play(track);
+  // Inside the becalming only. Past it the boat sails again and its COG is
+  // supposed to move -- the first version of this test read the last twenty
+  // samples, which ran an entire minute past the end of the hole.
+  // From the TRACK's start, not the history's: history keeps only the last five
+  // minutes, so its first sample is already well into the run and measuring
+  // from it put this window past the end of the track entirely.
+  const t0 = track.samples[0].t;
+  const drifting = history.samples.filter((s) => {
+    const at = (s.t - t0) / 1000;
+    return at > 260 && at < 410;
+  });
+  assert.ok(drifting.length > 10, `only ${drifting.length} samples inside the hole`);
+  const spread = Math.max(...drifting.map((s) => Math.abs(angDiff(s.cog, drifting[0].cog))));
+  assert.ok(spread < 5, `COG wandered ${spread.toFixed(0)} deg while stopped`);
+});
+
+test("a drifting boat produces no shift verdict", () => {
+  const scn = { ...SCENARIOS["beat-oscillating"], durationSec: 10 * 60 };
+  const track = applyFaults(makeTrack(scn, p), [{ kind: "becalmed", fromSec: 300, toSec: 600 }]);
+  const last = track.samples[track.samples.length - 1];
+  assert.equal(shiftFromCog(track.samples, 310, last.t), null,
+    "a boat going nowhere has no tack to be headed on");
 });

@@ -9,9 +9,13 @@ test("nothing outside clock.js reads the wall clock directly", () => {
   // The whole point of the seam is that a simulator can move time. One stray
   // Date.now() and a compressed track silently falls out of that buffer --
   // no error, just an instrument that stops reporting.
+  // Comments are stripped first. The first version of this test failed on a
+  // comment in sim.js that merely MENTIONED Date.now() to say it was avoiding
+  // it -- a rule that punishes writing about itself is a rule nobody keeps.
+  const strip = (src) => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
   const offenders = readdirSync(JS_DIR)
     .filter((f) => f.endsWith(".js") && f !== "clock.js")
-    .filter((f) => readFileSync(new URL(f, JS_DIR), "utf8").includes("Date.now()"));
+    .filter((f) => strip(readFileSync(new URL(f, JS_DIR), "utf8")).includes("Date.now()"));
   assert.deepEqual(offenders, [], `use clock.now() instead: ${offenders.join(", ")}`);
 });
 

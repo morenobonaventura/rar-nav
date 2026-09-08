@@ -174,12 +174,19 @@ or you will spend an afternoon debugging code the browser is not running.
 `rarnav.gps.history()`, and `rarnav.feed({lat, lon, sog, cog})` to drive the
 display from a made-up position and see what a leg looks like before sailing it.
 
-That injects one fix, which is enough to eyeball a leg and not enough to
-exercise anything that needs the boat to move — a tack, a wind shift, a GPS
-gap, an approach to a mark. [SIMULATION.md](SIMULATION.md) specs a simulation
-mode that would, and names the one thing that has to be fixed first: the app
-reads the wall clock in seven places, so a compressed track silently falls out
-of every buffer.
+That injects one fix. For anything that needs the boat to move — a tack, a wind
+shift, a GPS gap, an approach to a mark — there is a simulator:
+
+```sh
+node tools/make_track.js --all      # writes data/tracks/, not committed
+npm run serve                       # http://localhost:8000/?sim=beat-oscillating
+```
+
+It flies a boat with the router's own solver under a wind that moves, and plays
+the result into the GPS at 30x. See [SIMULATION.md](SIMULATION.md). It is off
+unless the URL asks for it, refuses to start over a real fix, and is not in the
+service worker's precache list, so on the boat the file is absent rather than
+merely disabled.
 
 ## Deploying
 
