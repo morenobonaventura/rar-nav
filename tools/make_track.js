@@ -272,6 +272,15 @@ if (process.argv[1] && process.argv[1].endsWith("make_track.js")) {
   const out = join(ROOT, "data/tracks");
   mkdirSync(out, { recursive: true });
   const p = polar();
+
+  // An index, so sim/index.html lists what actually exists rather than a
+  // hardcoded copy that rots the first time a scenario is added.
+  if (args.includes("--all")) {
+    writeFileSync(join(out, "index.json"), JSON.stringify(
+      Object.entries(SCENARIOS).map(([name, v]) => ({ name, what: v.what, proves: v.proves })),
+      null, 1));
+  }
+
   for (const name of names) {
     const scn = SCENARIOS[name];
     if (!scn) { console.error(`no such scenario: ${name}`); process.exit(1); }

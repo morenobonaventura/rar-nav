@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>RAR Nav — simulation</title>
+<link rel="apple-touch-icon" href="../icons/icon-180.png">
+<style>
+/* Deliberately not the app's stylesheet. This is a workbench page, and it
+   should not be possible to mistake a screenshot of it for the instrument. */
+:root {
+  --sea: #dceaf2; --ink: #14202b; --ink-soft: #526474; --rule: #a9bcc8;
+  --paper: #f4f8fa; --wind: #1b6fa8; --warn: #b25000;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  padding: 20px 16px calc(28px + env(safe-area-inset-bottom));
+  background: var(--sea);
+  color: var(--ink);
+  font: 400 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  -webkit-text-size-adjust: 100%;
+}
+main { max-width: 640px; margin: 0 auto; }
+h1 { margin: 0 0 4px; font-size: 21px; letter-spacing: -.01em; }
+.sub { margin: 0 0 18px; color: var(--ink-soft); font-size: 13.5px; }
+
+.note {
+  margin: 0 0 20px;
+  padding: 11px 13px;
+  border-left: 3px solid var(--warn);
+  border-radius: 0 8px 8px 0;
+  background: var(--paper);
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ink-soft);
+}
+.note b { color: var(--warn); }
+
+ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 9px; }
+a.card {
+  display: block;
+  padding: 12px 14px;
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  background: var(--paper);
+  color: inherit;
+  text-decoration: none;
+}
+a.card:active { background: var(--sea); }
+.name { font-weight: 600; font-size: 15.5px; }
+.what { margin-top: 2px; font-size: 13px; color: var(--ink-soft); }
+.proves { margin-top: 6px; font-size: 12px; color: var(--wind); }
+.proves::before { content: "proves "; color: var(--ink-soft); }
+
+.miss { padding: 14px; border-radius: 10px; background: var(--paper); font-size: 13.5px; }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; }
+footer { margin-top: 22px; font-size: 12.5px; color: var(--ink-soft); }
+footer a { color: var(--wind); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Simulation</h1>
+  <p class="sub">Generated tracks, played into RAR&nbsp;Nav at 30&times; as if they were the GPS.</p>
+
+  <p class="note">
+    <b>Not the instrument.</b> Every position you see after tapping one of these
+    is invented. The app shows a <code>SIM</code> badge throughout and stands its
+    GPS chip down, and simulation refuses to start over a real fix — or at all
+    inside the app installed to the home screen, which is the one that goes to
+    sea. To get back to the real thing, open it without <code>?sim=</code>.
+  </p>
+
+  <ol id="list"></ol>
+
+  <footer>
+    <a href="../">Open RAR Nav</a> &middot;
+    <a href="https://github.com/morenobonaventura/rar-nav/blob/main/SIMULATION.md">How this works</a>
+  </footer>
+</main>
+
+<script>
+const list = document.getElementById("list");
+
+fetch("../data/tracks/index.json")
+  .then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); })
+  .then((scenarios) => {
+    for (const s of scenarios) {
+      const li = document.createElement("li");
+      const a = document.createElement("a");
+      a.className = "card";
+      a.href = `../?sim=${encodeURIComponent(s.name)}`;
+
+      const name = document.createElement("div");
+      name.className = "name";
+      name.textContent = s.name;
+      a.append(name);
+
+      const what = document.createElement("div");
+      what.className = "what";
+      what.textContent = s.what;
+      a.append(what);
+
+      if (s.proves) {
+        const proves = document.createElement("div");
+        proves.className = "proves";
+        proves.textContent = s.proves;
+        a.append(proves);
+      }
+
+      li.append(a);
+      list.append(li);
+    }
+  })
+  .catch(() => {
+    // The tracks are generated, so a fresh checkout has none until they are.
+    const li = document.createElement("li");
+    li.className = "miss";
+    li.innerHTML = "No tracks found. Generate them with " +
+      "<code>node tools/make_track.js --all</code>, then reload.";
+    list.append(li);
+  });
+</script>
+</body>
+</html>
