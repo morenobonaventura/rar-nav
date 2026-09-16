@@ -29,8 +29,10 @@ After that it runs in airplane mode: everything it needs is cached on the phone.
   on it, and the app knows none of them.
 - **Tap a leg** in the list to make it the mark you are sailing to; the rest of
   the course re-times behind it.
-- **Tap SOG or COG** for the last five minutes, as a time series or a
-  distribution.
+- **Tap SOG, COG or VMG** for the last five minutes, as a time series or a
+  distribution. VMG starts over at every tap on a point: the other two are facts
+  about the boat and keep the whole window, but a VMG trend that straddles a
+  change of mind about where you are going is a trend across two questions.
 - **Position** arms the map: the next tap puts the boat where you tapped. Use it
   when the GPS has dropped out and you have a position from somewhere else, or
   to see what a leg will look like from a place you have not reached yet. A

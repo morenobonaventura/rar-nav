@@ -43,6 +43,10 @@ const state = {
   sim: null,
   historyField: "sog",
   historyView: "series",
+  // When the VMG trace last started over. Tapping a point is a change of mind
+  // about where the boat is going, and the trend across it would be a trend
+  // across two different questions -- see `setProbe`.
+  vmgSince: null,
 };
 
 const gps = new Gps();
@@ -264,6 +268,12 @@ function frameTrack() {
 // --- the tapped point ------------------------------------------------------
 
 function setProbe(point, name) {
+  // Every tap restarts the VMG history, and only that one. SOG and COG are
+  // facts about the boat and keep their full five minutes; VMG is read against
+  // the point you have just decided to sail at, so the minutes before the tap
+  // would average a different question into the answer. Clearing the point
+  // leaves the trace where it is: there is nothing new to measure against.
+  if (point) state.vmgSince = clock.now();
   state.probe = point ? { ...point, name: name ?? "Tapped point" } : null;
   refreshProbe();
 }
@@ -427,14 +437,17 @@ function drawShift(samples) {
 }
 
 /**
- * VMG for every sample in the buffer, against the wind as it is set NOW.
+ * VMG for every sample since the last tap, against the wind as it is set NOW.
  *
  * Only SOG and COG are recorded, so the history is re-derived rather than
  * stored: correct the wind and the whole trace corrects with it, which is the
  * honest behaviour when the wind is a number you typed rather than a measurement.
+ * The window starts at `state.vmgSince`, so the trace never straddles a tap.
  */
 const withVmg = (samples) =>
-  samples.map((x) => ({ ...x, vmg: vmgToWind(x.sog, x.cog, state.wind.twd) }));
+  samples
+    .filter((x) => state.vmgSince == null || x.t >= state.vmgSince)
+    .map((x) => ({ ...x, vmg: vmgToWind(x.sog, x.cog, state.wind.twd) }));
 
 // --- history panel ---------------------------------------------------------
 
@@ -492,13 +505,25 @@ function drawHistory() {
 
   renderStats($("hist-stats"), stats(samples.map((s) => s[f]), circular), unit, circular);
 
-  const mins = (h.spanMs / 60000).toFixed(1);
-  const parts = [`${h.samples.length} samples over ${mins} min`];
+  // Counted off what is actually drawn, not off the buffer: after a tap the VMG
+  // trace is shorter than the other two, and a five-minute span claimed under a
+  // thirty-second line is the sort of thing that gets trusted on deck.
+  const spanMs = samples.length ? samples[samples.length - 1].t - samples[0].t : 0;
+  const parts = [`${samples.length} samples over ${(spanMs / 60000).toFixed(1)} min`];
+  if (f === "vmg" && state.vmgSince != null) parts.push("since the last tap");
+  // A hole in the buffer only counts if it is inside the line being drawn --
+  // the app being in the background before you tapped says nothing about the
+  // trace since.
+  let gapMs = 0;
+  for (let i = 1; i < samples.length; i++) {
+    const d = samples[i].t - samples[i - 1].t;
+    if (d > SAMPLE_MS * 2.5) gapMs += d;
+  }
   if (h.staleMs != null && h.staleMs > SAMPLE_MS * 2)
     parts.push(`newest is ${Math.round(h.staleMs / 1000)} s old`);
-  if (h.gapMs > 0) parts.push(`${Math.round(h.gapMs / 1000)} s missing — the app was in the background`);
+  if (gapMs > 0) parts.push(`${Math.round(gapMs / 1000)} s missing — the app was in the background`);
   $("hist-span").textContent = parts.join(" · ");
-  $("hist-span").classList.toggle("warn", h.gapMs > 0 || (h.staleMs ?? 0) > 30000);
+  $("hist-span").classList.toggle("warn", gapMs > 0 || (h.staleMs ?? 0) > 30000);
 }
 
 // --- conditions ------------------------------------------------------------
