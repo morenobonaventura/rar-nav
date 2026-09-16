@@ -6,7 +6,7 @@
  * battery cost of leaving this open on deck close to the screen alone.
  */
 
-import { Polar, solveLeg, solveRoute, tackPath, fmtBearing, fmtDuration, fmtClock, norm360, haversineNm, vmgToWind, shiftFromCog } from "./nav.js";
+import { Polar, solveLeg, solveRoute, tackPath, fmtBearing, fmtDuration, fmtClock, norm360, haversineNm, vmgToWind, vmgToPoint, shiftFromCog } from "./nav.js";
 import { buildCourse, displayLegs, isOnLand, crossesLand, courseLandConflicts, gateWidthNm } from "./course.js";
 import { createMap, addCoast, CourseLayer, BoatLayer, ProbeLayer, ArrowField } from "./map.js";
 import { Gps, Wake, SAMPLE_MS, WINDOW_MS } from "./gps.js";
@@ -89,9 +89,9 @@ async function boot() {
 
   tickClock();
   setInterval(tickClock, 1000);
-  // The buffer ages even when no fix arrives, so refresh the sparklines on the
-  // same cadence they are sampled at.
-  setInterval(() => drawSparklines(), SAMPLE_MS);
+  // The buffer ages even when no fix arrives, so refresh the head on the same
+  // cadence it is sampled at.
+  setInterval(() => drawInstruments(), SAMPLE_MS);
 
   registerServiceWorker();
   startSimulationIfAsked();
@@ -281,10 +281,18 @@ function refreshProbe() {
   const leg = solveLeg(from, state.probe, state.wind, state.current, state.polar, state.variation);
   leg.eta = Number.isFinite(leg.hours) ? new Date(clock.now() + leg.hours * 3600e3) : null;
 
+  // What the boat is actually doing about this point, as opposed to what the
+  // polar says it could: the rate the distance above is coming down, negative
+  // when the present course is opening it. Only ever from a real fix -- a
+  // hand-placed position has no course over ground, and the leg would happily
+  // hand over a bearing to make good on a boat that is not moving.
+  const fix = boatFix();
+  leg.vmg = vmgToPoint(fix?.sog ?? null, fix?.cog ?? null, leg.bearingTrue);
+
   // The track to sail, and whether either option runs over an island. This is
   // point-to-point routing: it does not go around anything, it only says when
   // it would have to.
-  const paths = tackPath(from, state.probe, leg, boatFix()?.cog ?? null);
+  const paths = tackPath(from, state.probe, leg, fix?.cog ?? null);
   const blocked = paths.map((path) =>
     path.points.slice(1).some((p, i) => crossesLand(path.points[i], p, state.coast))
   );
@@ -297,14 +305,15 @@ function refreshProbe() {
 
   fillProbe(
     { name: $("probe-name"), pos: $("probe-pos"), dist: $("probe-dist"), brgt: $("probe-brgt"),
-      brgm: $("probe-brgm"), eta: $("probe-eta"), etaLabel: $("probe-eta-label"), mode: $("probe-mode") },
+      brgm: $("probe-brgm"), vmg: $("probe-vmg"), eta: $("probe-eta"),
+      etaLabel: $("probe-eta-label"), mode: $("probe-mode") },
     leg,
     state.probe.name,
     state.probe
   );
   box.hidden = false;
   if (!wasShown) map.invalidateSize();
-  probeLayer.update(boatFix(), state.probe, paths, blocked);
+  probeLayer.update(fix, state.probe, paths, blocked);
 }
 
 // --- GPS -------------------------------------------------------------------
@@ -715,7 +724,7 @@ function setNight(on) {
   });
   rebuildCourse();
   boatLayer.update(boatFix());
-  drawSparklines();
+  drawInstruments();
   if ($("panel-history").open) drawHistory();
   if ($("panel-conditions").open) drawDials();
 }

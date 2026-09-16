@@ -5,7 +5,7 @@ import {
   haversineNm, initialBearing, destinationPoint, angDiff, norm360,
   trueToMagnetic, windOverWater, vec, mag, dirOf, add,
   Polar, solveCourse, solveLeg, solveRoute, tackPath, fmtDuration, fmtBearing,
-  vmgToWind, shiftFromCog, meanBearing,
+  vmgToWind, vmgToPoint, shiftFromCog, meanBearing,
 } from "../js/nav.js";
 
 const polarData = JSON.parse(readFileSync(new URL("../data/polar_dufour40.json", import.meta.url)));
@@ -119,6 +119,34 @@ test("VMG at the beat angle is the polar's own upwind optimum", () => {
 test("VMG is unknown, not zero, when the boat has no course over ground", () => {
   assert.equal(vmgToWind(null, 310, 310), null, "no speed");
   assert.equal(vmgToWind(6, null, 310), null, "no heading — a pin on the map");
+});
+
+// --- speed made good to a point --------------------------------------------
+
+test("VMG to a point is the whole of SOG when steering straight at it", () => {
+  close(vmgToPoint(6, 129, 129), 6, 1e-9);
+});
+
+test("VMG to a point astern is negative, however hard the boat is going", () => {
+  // The 17:39 screenshot: a train doing 86.3 kn on 316 deg, with a point tapped
+  // on a bearing of 129 deg. The wind gauge read +85.9 because the breeze was
+  // from 310 and the train was running into it; the distance to the point was
+  // opening the whole time, and this is the number that has to say so.
+  const vmg = vmgToPoint(86.3, 316, 129);
+  assert.ok(vmg < 0, `made good ${vmg} kn toward a point 187 deg off the bow`);
+  close(vmg, -85.66, 1e-2, "86.3 kn through 187 deg of bearing");
+  close(vmgToWind(86.3, 316, 310), 85.83, 1e-2, "the windward gauge is untouched");
+});
+
+test("VMG to a point is zero with the point on the beam", () => {
+  close(vmgToPoint(6, 40, 130), 0, 1e-9);
+  close(vmgToPoint(6, 220, 130), 0, 1e-9);
+});
+
+test("VMG to a point is unknown, not zero, without a course over ground", () => {
+  assert.equal(vmgToPoint(null, 129, 129), null, "no speed");
+  assert.equal(vmgToPoint(6, null, 129), null, "boat placed by hand");
+  assert.equal(vmgToPoint(6, 129, null), null, "no point to make good toward");
 });
 
 // --- headers and lifts, from COG alone -------------------------------------

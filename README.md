@@ -17,8 +17,11 @@ deck once you are sailing it.
 Open the published page once with signal, then **Share → Add to Home Screen**.
 After that it runs in airplane mode: everything it needs is cached on the phone.
 
-- **Tap anywhere on the map** for distance, bearing and ETA to that point, and
-  the track to sail it. A fetch is the straight dashed line. A beat or a run is
+- **Tap anywhere on the map** for distance, bearing, VMG and ETA to that point,
+  and the track to sail it. The VMG there is made good toward the point on the
+  course you are on right now, and goes negative when that course is opening the
+  distance — which is a different number from the VMG in the head, made good to
+  windward, and each one is labelled with what it is measured against. A fetch is the straight dashed line. A beat or a run is
   drawn as two solid tracks — one tack either side, both landing on the mark in
   the same time — which together are the cone you have to stay inside. The tack
   points are marked, and the readout says how far and how long to the first one.
