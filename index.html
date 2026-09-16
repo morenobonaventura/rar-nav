@@ -56,8 +56,8 @@
     <span class="gauge-value"><span id="cog">--</span><span class="unit">°T</span></span>
     <canvas class="spark" id="spark-cog" width="240" height="34" aria-hidden="true"></canvas>
   </button>
-  <button class="gauge" id="gauge-vmg" type="button" title="Speed made good to windward">
-    <span class="gauge-label">VMG<span class="ref">wind</span><span class="tack" id="vmg-tack"></span></span>
+  <button class="gauge" id="gauge-vmg" type="button" title="Speed made good to the tapped point, or to windward when none is tapped">
+    <span class="gauge-label">VMG<span class="ref" id="vmg-ref">to wind</span><span class="tack" id="vmg-tack"></span></span>
     <span class="gauge-value"><span id="vmg">--</span><span class="unit">kn</span></span>
     <span class="shift" id="vmg-shift" aria-live="polite"></span>
   </button>
@@ -71,7 +71,6 @@
     <div><b id="probe-dist">--</b><span>distance</span></div>
     <div><b id="probe-brgt">--</b><span>bearing T</span></div>
     <div><b id="probe-brgm">--</b><span>bearing M</span></div>
-    <div><b id="probe-vmg">--</b><span>VMG to point</span></div>
     <div><b id="probe-eta">--</b><span id="probe-eta-label">time to go</span></div>
   </div>
   <p class="probe-mode" id="probe-mode"></p>
