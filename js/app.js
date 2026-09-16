@@ -13,6 +13,7 @@ import { Gps, Wake, SAMPLE_MS, WINDOW_MS } from "./gps.js";
 import { sparkline, timeSeries, histogram, compass, stats, dial, dialDirection } from "./charts.js";
 import { renderLegs, renderPolarTable, renderMarksTable, renderStats, fillProbe } from "./ui.js";
 import { clock } from "./clock.js";
+import { VERSION } from "./version.js";
 
 const $ = (id) => document.getElementById(id);
 const SETTINGS_KEY = "rarnav.settings.v1";
@@ -67,6 +68,8 @@ async function boot() {
   state.polarData = loadPolar(polar);
   state.polar = Polar.fromJSON(state.polarData);
   restoreSettings();
+
+  $("version").textContent = VERSION;
 
   map = createMap($("map"), course.bbox);
   coastLayer = addCoast(map, coast);

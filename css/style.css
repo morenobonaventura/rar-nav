@@ -105,6 +105,11 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   border-bottom: 1px solid var(--rule);
   font-size: 13px;
 }
+/* Which build is on the phone, small enough to ignore until it is the question.
+   First in the rail so it is in the same place whatever else the rail is
+   saying, and never wider than four characters. */
+.version { flex: none; font-size: 10.5px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+
 .fix { display: flex; align-items: center; gap: 6px; padding: 4px 0; color: var(--ink-soft); min-width: 0; }
 #fix-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dot {
