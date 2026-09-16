@@ -104,25 +104,57 @@ export function windOverWater(twd, tws, set, drift) {
 }
 
 /**
- * Speed made good to windward, from the boat's own track over the ground.
+ * Speed made good along an axis, from the boat's own track over the ground.
  *
- * The component of the boat's velocity along the wind axis: positive when it
- * is gaining ground toward where the wind comes from, negative when running
- * away from it. This is the number that says whether the last shift was worth
- * taking, and it is the one to compare against `Polar.vmgOptimum` — sailing
- * 0.3 kn under target VMG for ten minutes is a boat length a tack.
+ * The component of the boat's velocity along `axis`: positive when the boat is
+ * closing on whatever lies that way, negative when it is opening the distance.
+ * Everything else here is a wrapper that names the axis, because the axis is
+ * the whole question -- 86 kn on 316 deg is +86 to a wind from 310 and -86 to
+ * a mark bearing 129, and both numbers are true of the same boat.
+ *
+ * Returns null when there is nothing to compute from -- a boat sitting still
+ * has no course over ground, and a made-up number here would read as fact.
+ */
+function madeGoodAlong(sog, cog, axis) {
+  if (sog == null || cog == null || axis == null) return null;
+  return sog * Math.cos(angDiff(axis, cog) * D2R);
+}
+
+/**
+ * Speed made good to windward.
+ *
+ * Positive when the boat is gaining ground toward where the wind comes from,
+ * negative when running away from it. This is the number that says whether the
+ * last shift was worth taking, and it is the one to compare against
+ * `Polar.vmgOptimum` -- sailing 0.3 kn under target VMG for ten minutes is a
+ * boat length a tack. It says nothing whatever about the next mark: that is
+ * `vmgToPoint`, and the gauge showing this one is labelled "wind" for exactly
+ * that reason.
  *
  * Deliberately ground-referenced, to match the SOG and COG it is built from
  * and the windward mark it is being sailed toward. It is NOT the through-water
  * VMG a polar is measured at, so in a strong cross-set the two differ; the
  * difference is the tide doing the work, which is exactly what you want to see.
- *
- * Returns null when there is nothing to compute from — a boat sitting still
- * has no course over ground, and a made-up number here would read as fact.
  */
 export function vmgToWind(sog, cog, twd) {
-  if (sog == null || cog == null || twd == null) return null;
-  return sog * Math.cos(angDiff(twd, cog) * D2R);
+  return madeGoodAlong(sog, cog, twd);
+}
+
+/**
+ * Speed made good toward a point, along the bearing to it.
+ *
+ * The rate the distance in the readout above it is coming down: positive when
+ * the present course is closing the point, negative when it is opening -- sail
+ * away from a mark and this must go negative, however fast the boat is moving
+ * and whatever the wind is doing. Take the bearing from the same fix the
+ * distance was measured from; over a long leg it swings, and made good is
+ * always made good toward where the point is NOW.
+ *
+ * Not a prediction: it is what the boat is doing on the course it is on, not
+ * what it could do if it were sailed properly, which is `solveLeg`'s `vmc`.
+ */
+export function vmgToPoint(sog, cog, bearingTrue) {
+  return madeGoodAlong(sog, cog, bearingTrue);
 }
 
 /** Mean of a set of bearings, averaged as unit vectors rather than as numbers. */

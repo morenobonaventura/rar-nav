@@ -78,6 +78,13 @@ export function fillProbe(refs, leg, title, point) {
   refs.brgt.textContent = fmtBearing(leg.bearingTrue);
   refs.brgm.textContent = fmtBearing(leg.bearingMag);
 
+  // Made good toward this point, sign and all. Not the head's VMG, which is to
+  // windward: on a course that leaves a mark astern with the breeze ahead one
+  // reads +86 and the other -86, so each says out loud what it is measured
+  // against. A dash when there is no course over ground to resolve -- a boat
+  // put on the map by hand is making good nothing at all.
+  refs.vmg.textContent = leg.vmg == null ? "--" : `${leg.vmg.toFixed(1)} kn`;
+
   if (leg.mode === "unreachable") {
     refs.eta.textContent = "--";
     refs.etaLabel.textContent = "cannot lay";
