@@ -6,7 +6,7 @@
  * battery cost of leaving this open on deck close to the screen alone.
  */
 
-import { Polar, solveLeg, solveRoute, tackPath, fmtBearing, fmtDuration, fmtClock, norm360, haversineNm, vmgToWind, vmgToPoint, shiftFromCog } from "./nav.js";
+import { Polar, solveLeg, solveRoute, tackPath, fmtBearing, fmtDuration, fmtClock, norm360, haversineNm, initialBearing, vmgToWind, vmgToPoint, shiftFromCog } from "./nav.js";
 import { buildCourse, displayLegs, isOnLand, crossesLand, courseLandConflicts, gateWidthNm } from "./course.js";
 import { createMap, addCoast, CourseLayer, BoatLayer, ProbeLayer, ArrowField } from "./map.js";
 import { Gps, Wake, SAMPLE_MS, WINDOW_MS } from "./gps.js";
@@ -290,14 +290,7 @@ function refreshProbe() {
   const from = boatOrStart();
   const leg = solveLeg(from, state.probe, state.wind, state.current, state.polar, state.variation);
   leg.eta = Number.isFinite(leg.hours) ? new Date(clock.now() + leg.hours * 3600e3) : null;
-
-  // What the boat is actually doing about this point, as opposed to what the
-  // polar says it could: the rate the distance above is coming down, negative
-  // when the present course is opening it. Only ever from a real fix -- a
-  // hand-placed position has no course over ground, and the leg would happily
-  // hand over a bearing to make good on a boat that is not moving.
   const fix = boatFix();
-  leg.vmg = vmgToPoint(fix?.sog ?? null, fix?.cog ?? null, leg.bearingTrue);
 
   // The track to sail, and whether either option runs over an island. This is
   // point-to-point routing: it does not go around anything, it only says when
@@ -315,8 +308,8 @@ function refreshProbe() {
 
   fillProbe(
     { name: $("probe-name"), pos: $("probe-pos"), dist: $("probe-dist"), brgt: $("probe-brgt"),
-      brgm: $("probe-brgm"), vmg: $("probe-vmg"), eta: $("probe-eta"),
-      etaLabel: $("probe-eta-label"), mode: $("probe-mode") },
+      brgm: $("probe-brgm"), eta: $("probe-eta"), etaLabel: $("probe-eta-label"),
+      mode: $("probe-mode") },
     leg,
     state.probe.name,
     state.probe
@@ -391,9 +384,31 @@ function drawSimTrail(fix) {
   simTrail.addLatLng([fix.lat, fix.lon]);
 }
 
+/**
+ * The VMG the head shows, and what it is measured against.
+ *
+ * Tap a point and it is the speed toward that point: the rate its distance is
+ * coming down, negative when the course is opening it. That is the question
+ * someone who has just tapped a mark is asking, and it is the only VMG on the
+ * screen while a mark is up. With no point tapped there is nothing to make good
+ * toward, so it falls back to the windward number the polar is compared against.
+ *
+ * The axis comes back with it because the gauge has to say which one it is
+ * showing -- the same boat reads +86 to the wind and -86 to a mark astern.
+ */
+function headVmg() {
+  const fix = boatFix();
+  if (state.probe) {
+    const bearing = initialBearing(boatOrStart(), state.probe);
+    return { vmg: vmgToPoint(fix?.sog ?? null, fix?.cog ?? null, bearing), ref: "to point" };
+  }
+  return { vmg: vmgToWind(fix?.sog ?? null, fix?.cog ?? null, state.wind.twd), ref: "to wind" };
+}
+
 function drawInstruments() {
   const fix = boatFix();
-  const vmg = vmgToWind(fix?.sog ?? null, fix?.cog ?? null, state.wind.twd);
+  const { vmg, ref } = headVmg();
+  $("vmg-ref").textContent = ref;
 
   $("sog").textContent = fix?.sog != null ? fix.sog.toFixed(1) : "--";
   $("cog").textContent = fix?.cog != null ? String(Math.round(fix.cog)).padStart(3, "0") : "--";
@@ -437,29 +452,39 @@ function drawShift(samples) {
 }
 
 /**
- * VMG for every sample since the last tap, against the wind as it is set NOW.
+ * VMG for every sample since the last tap, on the axis the gauge is showing.
  *
  * Only SOG and COG are recorded, so the history is re-derived rather than
- * stored: correct the wind and the whole trace corrects with it, which is the
- * honest behaviour when the wind is a number you typed rather than a measurement.
- * The window starts at `state.vmgSince`, so the trace never straddles a tap.
+ * stored: correct the wind, or tap somewhere else, and the whole trace corrects
+ * with it. The bearing to the point is taken from where the boat is NOW rather
+ * than per sample -- the app does not record positions, and over the minutes
+ * since the last tap it has not swung far. The window starts at
+ * `state.vmgSince`, so the trace never straddles a tap and the approximation
+ * never has more than a few minutes of sailing to be wrong about.
  */
-const withVmg = (samples) =>
-  samples
+const withVmg = (samples) => {
+  const axis = state.probe ? initialBearing(boatOrStart(), state.probe) : state.wind.twd;
+  return samples
     .filter((x) => state.vmgSince == null || x.t >= state.vmgSince)
-    .map((x) => ({ ...x, vmg: vmgToWind(x.sog, x.cog, state.wind.twd) }));
+    .map((x) => ({ ...x, vmg: state.probe ? vmgToPoint(x.sog, x.cog, axis) : vmgToWind(x.sog, x.cog, axis) }));
+};
 
 // --- history panel ---------------------------------------------------------
 
 const HISTORY_TITLES = {
   sog: "Speed over ground",
   cog: "Course over ground",
-  vmg: "Speed made good to windward",
+  vmg: "Speed made good",
 };
 
 function openHistory(f) {
   state.historyField = f;
-  $("hist-title").textContent = HISTORY_TITLES[f];
+  // The VMG panel names its axis the way the gauge does, because the trace is
+  // the gauge's own number over time and the two must never disagree.
+  const target = state.probe?.name === "Tapped point" ? "the tapped point" : state.probe?.name;
+  $("hist-title").textContent = f === "vmg"
+    ? `Speed made good ${target ? `to ${target}` : "to windward"}`
+    : HISTORY_TITLES[f];
 
   // A compass rose of speeds would be nonsense, so the tab only exists for the
   // one field it means anything for -- and a view left selected from a

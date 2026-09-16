@@ -17,11 +17,13 @@ deck once you are sailing it.
 Open the published page once with signal, then **Share → Add to Home Screen**.
 After that it runs in airplane mode: everything it needs is cached on the phone.
 
-- **Tap anywhere on the map** for distance, bearing, VMG and ETA to that point,
-  and the track to sail it. The VMG there is made good toward the point on the
-  course you are on right now, and goes negative when that course is opening the
-  distance — which is a different number from the VMG in the head, made good to
-  windward, and each one is labelled with what it is measured against. A fetch is the straight dashed line. A beat or a run is
+- **Tap anywhere on the map** for distance, bearing and ETA to that point, and
+  the track to sail it. The VMG gauge in the head swings onto the point as you
+  tap it: speed made good toward it on the course you are actually sailing,
+  negative when that course is opening the distance. With no point tapped it
+  falls back to made good to windward, and the gauge says which one it is
+  showing — `to point` or `to wind` — because the same boat can read +86 kn to
+  the wind and −86 kn to a mark astern. A fetch is the straight dashed line. A beat or a run is
   drawn as two solid tracks — one tack either side, both landing on the mark in
   the same time — which together are the cone you have to stay inside. The tack
   points are marked, and the readout says how far and how long to the first one.
@@ -30,9 +32,10 @@ After that it runs in airplane mode: everything it needs is cached on the phone.
 - **Tap a leg** in the list to make it the mark you are sailing to; the rest of
   the course re-times behind it.
 - **Tap SOG, COG or VMG** for the last five minutes, as a time series or a
-  distribution. VMG starts over at every tap on a point: the other two are facts
-  about the boat and keep the whole window, but a VMG trend that straddles a
-  change of mind about where you are going is a trend across two questions.
+  distribution. VMG starts over at every tap on a point, because it is measured
+  against that point: the other two are facts about the boat and keep the whole
+  window, but a VMG trend that straddles a change of mind about where you are
+  going is a trend across two questions.
 - **Position** arms the map: the next tap puts the boat where you tapped. Use it
   when the GPS has dropped out and you have a position from somewhere else, or
   to see what a leg will look like from a place you have not reached yet. A

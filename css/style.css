@@ -217,9 +217,10 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 
 /* Tack and shift, in the VMG gauge's sparkline slot. HEADED is the one that
    asks you to do something, so it is the only one that shouts. */
-/* The gauge says what its VMG is measured against. Without it the number is
-   read as made good to the mark, and 86 kn toward a mark astern is the kind of
-   wrong that gets believed. */
+/* The gauge says what its VMG is measured against -- the tapped point, or the
+   wind when nothing is tapped. Without it the number is read as made good to
+   the mark whatever it is, and 86 kn toward a mark astern is the kind of wrong
+   that gets believed. */
 .ref { margin-left: 5px; letter-spacing: 0; text-transform: lowercase; color: var(--ink-soft); }
 .tack { margin-left: 6px; font-size: 11px; letter-spacing: .08em; color: var(--ink); font-weight: 600; }
 .shift {
