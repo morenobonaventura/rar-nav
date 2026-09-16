@@ -6,9 +6,11 @@
  * of them change without a version bump: there is no live data to go stale, and
  * a boat 30 miles offshore must never wait on a network round trip.
  *
- * Bump CACHE when any file below changes, or phones will keep the old copy.
+ * Bump CACHE when any file below changes, or phones will keep the old copy --
+ * and move VERSION in js/version.js with it, because that is the number the
+ * rail shows and it must name the build actually being served.
  */
-const CACHE = "rarnav-v19";
+const CACHE = "rarnav-v20";
 
 const ASSETS = [
   "./",
@@ -16,6 +18,7 @@ const ASSETS = [
   "manifest.webmanifest",
   "css/style.css",
   "js/app.js",
+  "js/version.js",
   "js/nav.js",
   "js/clock.js",
   "js/course.js",

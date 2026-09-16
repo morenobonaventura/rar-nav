@@ -7,7 +7,9 @@
   (`node --test tests/`) does not resolve the directory on Node 22 and fails
   before running anything.
 - **Bump `CACHE` in `sw.js`** whenever a file it caches changes, or phones that
-  have the app on the home screen keep serving the old copy offline.
+  have the app on the home screen keep serving the old copy offline. Move
+  `VERSION` in `js/version.js` with it: that is the build number in the rail,
+  and it has to name the build being served.
 - **Check changes in the app, not only in the tests.** `?sim=<name>` plays a
   recorded track through the whole instrument head without a GPS or a boat —
   `data/tracks/index.json` lists them, and `SIMULATION.md` says what each is for.
