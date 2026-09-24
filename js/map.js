@@ -301,6 +301,77 @@ export class ProbeLayer {
 }
 
 /**
+ * The waypoints you saved yourself, drawn on the chart.
+ *
+ * A flag, in ink rather than in any of the colours the course already owns:
+ * red is a race mark, green the start and the boat, blue whatever is being
+ * sailed to. A saved point is none of those -- it is yours -- and on a chart
+ * read at a glance the colour is the category.
+ *
+ * The staff stands on the position and the dot at its foot is the position
+ * itself, so the flag flies clear of the water it marks instead of covering it.
+ * Tapping one selects it, exactly as tapping its row in the list does.
+ */
+export class SavedLayer {
+  constructor(map) {
+    this.map = map;
+    this.group = L.layerGroup().addTo(map);
+    this.onSelect = null;
+  }
+
+  draw(saved, activeId) {
+    this.group.clearLayers();
+    this.last = { saved, activeId };
+    if (!saved?.length) return;
+
+    // Same declutter rule as the course: names go when they cannot be read,
+    // except for the one being sailed to, which is the one you are looking for.
+    const labelled = this.map.getZoom() >= 9.5;
+
+    saved.forEach((w) => {
+      const active = w.id === activeId;
+      const ink = css("--ink");
+      const paper = css("--paper");
+      L.marker([w.lat, w.lon], {
+        keyboard: false,
+        icon: L.divIcon({
+          className: "",
+          html: `<svg width="24" height="28" viewBox="0 0 24 28">
+                   <path d="M4 26V3" stroke="${ink}" stroke-width="${active ? 2.4 : 1.8}" stroke-linecap="round"/>
+                   <path d="M4.8 3.4L18 8l-13.2 4.6z" fill="${active ? ink : paper}"
+                         stroke="${ink}" stroke-width="1.6" stroke-linejoin="round"/>
+                   <circle cx="4" cy="26" r="${active ? 2.6 : 2}" fill="${ink}"/>
+                 </svg>`,
+          iconSize: [24, 28],
+          iconAnchor: [4, 26],
+        }),
+      })
+        .addTo(this.group)
+        .on("click", (e) => {
+          L.DomEvent.stopPropagation(e);
+          this.onSelect?.(w.id);
+        });
+
+      if (!labelled && !active) return;
+      L.marker([w.lat, w.lon], {
+        interactive: false,
+        icon: L.divIcon({
+          className: "",
+          html: `<span class="mark-label">${escapeHtml(w.name)}</span>`,
+          iconSize: [0, 0],
+          iconAnchor: [-20, 10],
+        }),
+      }).addTo(this.group);
+    });
+  }
+
+  /** Redraw at the current zoom, so labels appear and vanish with it. */
+  refresh() {
+    if (this.last) this.draw(this.last.saved, this.last.activeId);
+  }
+}
+
+/**
  * Sparse wind and tide arrows over the map.
  *
  * Both point the way the thing is GOING, which is how a sailor reads a routing
