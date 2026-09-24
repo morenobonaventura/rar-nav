@@ -8,7 +8,7 @@
 
 import { Polar, solveLeg, solveRoute, tackPath, fmtBearing, fmtDuration, fmtClock, norm360, haversineNm, initialBearing, vmgToWind, vmgToPoint, shiftFromCog } from "./nav.js";
 import { buildCourse, displayLegs, isOnLand, crossesLand, courseLandConflicts, gateWidthNm } from "./course.js";
-import { createMap, addCoast, CourseLayer, BoatLayer, ProbeLayer, ArrowField } from "./map.js";
+import { createMap, addCoast, CourseLayer, BoatLayer, ProbeLayer, SavedLayer, ArrowField } from "./map.js";
 import { Gps, Wake, SAMPLE_MS, WINDOW_MS } from "./gps.js";
 import { sparkline, timeSeries, histogram, compass, stats, dial, dialDirection } from "./charts.js";
 import { renderLegs, renderSaved, renderPolarTable, renderMarksTable, renderStats, fillProbe } from "./ui.js";
@@ -62,7 +62,7 @@ const state = {
 
 const gps = new Gps();
 const wake = new Wake();
-let map, coastLayer, courseLayer, boatLayer, probeLayer, field, simTrail;
+let map, coastLayer, courseLayer, savedLayer, boatLayer, probeLayer, field, simTrail;
 
 // --- boot ------------------------------------------------------------------
 
@@ -85,6 +85,14 @@ async function boot() {
   map = createMap($("map"), course.bbox);
   coastLayer = addCoast(map, coast);
   courseLayer = new CourseLayer(map);
+  // Under the boat and whatever is being sailed to, over the course: a saved
+  // point is a thing on the chart, not a thing in the way of reading it.
+  savedLayer = new SavedLayer(map);
+  savedLayer.onSelect = (id) => {
+    if (!state.placing) return selectSaved(id);
+    const w = state.saved.find((x) => x.id === id); // flags swallow the map click
+    if (w) placeBoat({ lat: w.lat, lon: w.lon });
+  };
   boatLayer = new BoatLayer(map);
   probeLayer = new ProbeLayer(map);
   field = new ArrowField(map, $("field"));
@@ -98,7 +106,7 @@ async function boot() {
     if (state.placing) placeBoat(at);
     else setProbe(at);
   });
-  map.on("zoomend", () => courseLayer.refresh());
+  map.on("zoomend", () => { courseLayer.refresh(); savedLayer.refresh(); });
 
   wireUi();
   rebuildCourse();
@@ -257,6 +265,7 @@ function recompute() {
   $("direction-icon").textContent = cw ? "\u21bb" : "\u21ba";
   $("direction-label").textContent = cw ? "Clockwise" : "Anticlockwise";
   courseLayer.draw(state.waypoints, state.rows, state.activeIndex);
+  savedLayer.draw(state.saved, state.activeSaved);
   field.set(state.wind, state.current);
   updateConditionText();
   drawInstruments();

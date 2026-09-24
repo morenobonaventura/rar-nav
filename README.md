@@ -33,8 +33,9 @@ After that it runs in airplane mode: everything it needs is cached on the phone.
   the course re-times behind it.
 - **`+` in the rail saves a waypoint**: the tapped point, or where the boat is
   when nothing is tapped. Saved points are kept on that phone alone, listed
-  under the course legs with a flag and solved from the boat like any other
-  leg, and tapping one makes it the point you are sailing to. They are yours,
+  under the course legs with a flag, drawn on the chart as one, and solved from
+  the boat like any other leg. Tapping either the row or the flag makes it the
+  point you are sailing to. They are yours,
   not the course's: the route and its total never count them. The bin deletes
   one, and takes two taps to do it — there is no undo, and a stray thumb on the
   way to windward is exactly the tap that would need one.
