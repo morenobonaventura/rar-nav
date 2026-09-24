@@ -11,7 +11,8 @@ import { buildCourse, displayLegs, isOnLand, crossesLand, courseLandConflicts, g
 import { createMap, addCoast, CourseLayer, BoatLayer, ProbeLayer, ArrowField } from "./map.js";
 import { Gps, Wake, SAMPLE_MS, WINDOW_MS } from "./gps.js";
 import { sparkline, timeSeries, histogram, compass, stats, dial, dialDirection } from "./charts.js";
-import { renderLegs, renderPolarTable, renderMarksTable, renderStats, fillProbe } from "./ui.js";
+import { renderLegs, renderSaved, renderPolarTable, renderMarksTable, renderStats, fillProbe } from "./ui.js";
+import { loadWaypoints, saveWaypoints, addWaypoint, removeWaypoint, nextWaypointName } from "./waypoints.js";
 import { clock } from "./clock.js";
 import { VERSION } from "./version.js";
 
@@ -42,6 +43,15 @@ const state = {
   placing: false,
   night: false,
   sim: null,
+  // Points you saved yourself, read back from this phone at boot. They are not
+  // part of the course: they hang off the bottom of the leg list, and the route
+  // and its total never see them.
+  saved: [],
+  activeSaved: null,
+  // Which bin has been tapped once. Deleting a waypoint takes two taps and
+  // nothing else remembers this, so it dies with the render.
+  armedDelete: null,
+  storageOk: true,
   historyField: "sog",
   historyView: "series",
   // When the VMG trace last started over. Tapping a point is a change of mind
@@ -67,6 +77,7 @@ async function boot() {
   state.variation = course.magnetic_variation_deg;
   state.polarData = loadPolar(polar);
   state.polar = Polar.fromJSON(state.polarData);
+  state.saved = loadWaypoints(storage());
   restoreSettings();
 
   $("version").textContent = VERSION;
@@ -226,6 +237,15 @@ function recompute() {
   state.route = { rows, totalNm: solved.totalNm, totalHours: solved.totalHours };
 
   renderLegs($("legs"), rows, 0, (i) => selectRow(rows[i].index));
+  renderSaved($("legs"), savedRows(from), {
+    label: state.storageOk ? "Saved on this phone" : "Saved — this phone refused to store them",
+    stored: state.storageOk,
+    activeId: state.activeSaved,
+    armedId: state.armedDelete,
+    onSelect: selectSaved,
+    onDelete: deleteSaved,
+  });
+  $("btn-waypoint").disabled = !(state.probe || boatFix());
   // Say where the times are measured FROM: with no fix they run from the start
   // line, which is a different number from the one you want underway.
   const origin = boatFix() ? "" : "from the start · ";
@@ -243,7 +263,94 @@ function recompute() {
   refreshProbe();
 }
 
+// --- waypoints you saved yourself ------------------------------------------
+
+/** localStorage, or nothing at all: Safari throws on the property itself with
+ *  site data blocked, and losing waypoints must not cost you the navigator. */
+function storage() {
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+/** Each saved point solved from where the boat is, exactly as a leg is. */
+function savedRows(from) {
+  return state.saved.map((w) => {
+    const leg = solveLeg(from, w, state.wind, state.current, state.polar, state.variation);
+    return {
+      ...w, ...leg,
+      eta: Number.isFinite(leg.hours) ? new Date(clock.now() + leg.hours * 3600e3) : null,
+    };
+  });
+}
+
+/**
+ * Save what is on screen: the tapped point if there is one, otherwise where the
+ * boat is now.
+ *
+ * Those are the two things worth keeping -- the point you are looking at, and
+ * the spot you are passing -- and which one it is needs no second button,
+ * because a tapped point is always the thing in front of you. Saving selects
+ * it, so the gauge and the readout come round onto it immediately and you can
+ * see what you just saved.
+ */
+function saveWaypointHere() {
+  const at = state.probe ?? boatFix();
+  if (!at) return;
+  const next = addWaypoint(state.saved, { lat: at.lat, lon: at.lon, name: nextWaypointName(state.saved) }, clock.now());
+  if (next === state.saved) return;
+  state.saved = next;
+  persistSaved();
+  selectSaved(next[next.length - 1].id);
+}
+
+/** Make a saved point the one being sailed to, as tapping a leg does. */
+function selectSaved(id) {
+  const w = state.saved.find((x) => x.id === id);
+  if (!w) return;
+  state.activeSaved = id;
+  state.armedDelete = null;
+  setProbe({ lat: w.lat, lon: w.lon }, w.name);
+  recompute();
+}
+
+/** First tap arms the row, second deletes it. */
+function deleteSaved(id) {
+  if (state.armedDelete !== id) {
+    state.armedDelete = id;
+    recompute();
+    // Disarm rather than leave a red row waiting: come back to the phone ten
+    // minutes later and the next tap must mean what it says on the icon.
+    setTimeout(() => {
+      if (state.armedDelete !== id) return;
+      state.armedDelete = null;
+      recompute();
+    }, 5000);
+    return;
+  }
+  state.saved = removeWaypoint(state.saved, id);
+  state.armedDelete = null;
+  persistSaved();
+  // The point being sailed to has just stopped existing, so nothing is.
+  if (state.activeSaved === id) {
+    state.activeSaved = null;
+    setProbe(null);
+  }
+  recompute();
+}
+
+/** Writes the list back, and remembers if the phone would not have it. The
+ *  list on screen is real either way, but a waypoint you believe is written
+ *  down is worse than one you know is not -- so the heading above them says
+ *  which, where you are already looking. */
+function persistSaved() {
+  state.storageOk = saveWaypoints(state.saved, storage());
+}
+
 function selectRow(i) {
+  state.activeSaved = null;
   state.activeIndex = Math.max(0, Math.min(i, state.rows.length - 1));
   const target = state.rows[state.activeIndex]?.target;
   if (target) {
@@ -349,7 +456,12 @@ function onGps() {
   } else if (fix) {
     const acc = Math.round(fix.accuracy ?? 0);
     fixEl.dataset.quality = acc <= 15 ? "good" : acc <= 50 ? "poor" : "none";
-    $("fix-text").textContent = `GPS ±${acc} m${fix.derived ? ", speed from fixes" : ""}`;
+    // "±8 m" rather than "GPS ±8 m": the dot beside it is the GPS, and with a
+    // fourth button in the rail the accuracy is what the abbreviation has to
+    // protect. It is the number that decides whether to trust the boat's
+    // position at all, and an ellipsis through it would be the worst trade in
+    // the rail.
+    $("fix-text").textContent = `±${acc} m${fix.derived ? ", speed from fixes" : ""}`;
   } else {
     fixEl.dataset.quality = "none";
     $("fix-text").textContent = "Waiting for a GPS fix";
@@ -607,7 +719,12 @@ function wireUi() {
     if (state.placing) armPlacing(false);
     else if (state.manual) clearManual();
   });
-  $("probe-close").addEventListener("click", () => setProbe(null));
+  $("btn-waypoint").addEventListener("click", saveWaypointHere);
+  $("probe-close").addEventListener("click", () => {
+    state.activeSaved = null;
+    setProbe(null);
+    recompute();
+  });
   $("btn-centre").addEventListener("click", () => {
     const fix = boatFix();
     if (fix) map.setView([fix.lat, fix.lon], Math.max(map.getZoom(), 12));

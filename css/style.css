@@ -105,6 +105,10 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   border-bottom: 1px solid var(--rule);
   font-size: 13px;
 }
+/* Four actions, a clock, a build number and the fix quality across 393 px: the
+   gaps and the button padding are as tight as they are because the one thing in
+   here that must never be abbreviated is how good the fix is. */
+.rail { gap: 8px; }
 /* Which build is on the phone, small enough to ignore until it is the question.
    First in the rail so it is in the same place whatever else the rail is
    saying, and never wider than four characters. */
@@ -128,6 +132,10 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 /* Permanent, not a toast. A simulated fix that can be mistaken for a real one
    is worse than no simulator at all. */
 .simbadge {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   padding: 2px 7px;
   border-radius: 4px;
   background: var(--warn);
@@ -176,10 +184,19 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .simbar.ended #sim-time { color: var(--warn); font-weight: 700; }
 
 #clock { margin-left: auto; font-variant-numeric: tabular-nums; letter-spacing: .02em; color: var(--ink-soft); }
-.rail-actions { display: flex; gap: 4px; margin-left: auto; }
+/* The actions keep their width and their one line: the rail's flexible things
+   are the fix chip and the simulation badge, both of which can ellipsise, and a
+   button that folds in half is a button nobody can read at a glance. */
+.rail-actions { display: flex; gap: 4px; margin-left: auto; flex: none; }
+.rail-actions .icon { flex: none; white-space: nowrap; }
+/* Saving a waypoint is the one rail action with no state to report, so it is a
+   plus rather than a word -- and the width it gives back is what keeps "GPS
+   ±8 m" from being ellipsised into nothing. */
+.icon.plus { padding: 5px 12px; font-size: 15px; line-height: 1.1; }
+.icon.plus:disabled { opacity: .35; }
 #clock + .rail-actions { margin-left: 10px; }
 .icon {
-  padding: 5px 10px;
+  padding: 5px 9px;
   border: 1px solid var(--rule);
   border-radius: 999px;
   font-size: 12px;
@@ -379,6 +396,29 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .leg-sub.twoangles em { color: var(--warn); }
 .leg-sub.unreachable em { color: var(--mark); }
 .leg-clock { font-size: 11.5px; color: var(--ink-soft); font-variant-numeric: tabular-nums; text-align: right; }
+
+/* Saved waypoints. The rows are legs; the list says once where they came from,
+   and each carries the bin that the course legs must never have. */
+.legs-sep {
+  padding: 10px 14px 2px;
+  font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--ink-soft);
+  border-top: 1px solid var(--rule);
+  margin-top: 4px;
+}
+.legs-sep.warn { color: var(--warn); }
+.saved-row { display: flex; align-items: stretch; }
+/* The row is two buttons; the selection has to read as one row, bin included. */
+.saved-row:has(.leg[aria-current="true"]) { background: color-mix(in srgb, var(--wind) 9%, transparent); }
+.saved-row .leg { flex: 1; min-width: 0; }
+.bin {
+  flex: none;
+  display: grid; place-items: center;
+  width: var(--tap);
+  color: var(--ink-soft);
+}
+/* Armed, it stops being an icon and says what the next tap does. */
+.bin.armed { width: auto; padding: 0 12px; color: var(--mark); font-size: 11.5px; font-weight: 700; letter-spacing: .02em; }
 
 .disclaimer { margin: 0; padding: 8px 14px calc(10px + env(safe-area-inset-bottom)); font-size: 11px; color: var(--ink-soft); border-top: 1px solid var(--rule); }
 
