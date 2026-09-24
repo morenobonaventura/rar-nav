@@ -70,6 +70,66 @@ export function renderLegs(list, rows, activeIndex, onSelect) {
   });
 }
 
+/**
+ * The waypoints you saved yourself, under the course legs in the same list.
+ *
+ * Same row as a leg, because they are sailed to the same way, with two
+ * differences: a flag instead of a leg number, since they have no place in the
+ * course and numbering them alongside it would invite sailing to the wrong
+ * one, and a bin, which only these have. Deleting takes two taps -- the first
+ * arms the row, the second does it. There is no undo on a phone in a wet
+ * pocket, and a stray thumb on a bin is exactly the kind of tap that happens
+ * on the way to windward.
+ */
+export function renderSaved(list, rows, { label, stored, activeId, armedId, onSelect, onDelete }) {
+  if (!rows.length) return;
+  list.append(el("li", `legs-sep${stored ? "" : " warn"}`, label));
+
+  rows.forEach((row) => {
+    const li = el("li", "saved-row");
+    const b = el("button", "leg");
+    b.type = "button";
+    if (row.id === activeId) b.setAttribute("aria-current", "true");
+    if (row.mode === "unreachable") b.classList.add("unreachable");
+
+    b.append(el("span", "leg-n", "\u2691"));
+    b.append(el("span", "leg-name", row.name));
+
+    const figures = el("span", "leg-figures");
+    figures.append(el("span", "leg-dist", fmtDistance(row.distNm)));
+    figures.append(el("span", "leg-eta", fmtDuration(row.hours)));
+    b.append(figures);
+
+    const sub = el("span", `leg-sub ${row.mode}`);
+    sub.append(el("em", null, modeLabel(row)));
+    sub.append(document.createTextNode(
+      ` ${fmtBearing(row.bearingTrue)}T · ${fmtBearing(row.bearingMag)}M`
+    ));
+    b.append(sub);
+    b.append(el("span", "leg-clock", row.eta ? fmtClock(row.eta) : "--:--"));
+    b.addEventListener("click", () => onSelect(row.id));
+
+    const armed = row.id === armedId;
+    const bin = el("button", `bin${armed ? " armed" : ""}`);
+    bin.type = "button";
+    bin.title = armed ? `Delete ${row.name}` : `Delete ${row.name} — tap twice`;
+    bin.setAttribute("aria-label", bin.title);
+    if (armed) bin.append(el("span", null, "Delete?"));
+    else bin.innerHTML = TRASH;
+    bin.addEventListener("click", () => onDelete(row.id));
+
+    li.append(b, bin);
+    list.append(li);
+  });
+}
+
+const TRASH = `<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none"
+  stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M4 7h16M10 4.5h4a1 1 0 0 1 1 1V7H9V5.5a1 1 0 0 1 1-1z"/>
+  <path d="M6.5 7l.8 12.1A2 2 0 0 0 9.3 21h5.4a2 2 0 0 0 2-1.9L17.5 7"/>
+  <path d="M10.5 10.5v7M13.5 10.5v7"/>
+</svg>`;
+
 /** Fill the tapped-point readout. */
 export function fillProbe(refs, leg, title, point) {
   refs.name.textContent = title;

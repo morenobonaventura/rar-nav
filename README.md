@@ -31,6 +31,13 @@ After that it runs in airplane mode: everything it needs is cached on the phone.
   on it, and the app knows none of them.
 - **Tap a leg** in the list to make it the mark you are sailing to; the rest of
   the course re-times behind it.
+- **`+` in the rail saves a waypoint**: the tapped point, or where the boat is
+  when nothing is tapped. Saved points are kept on that phone alone, listed
+  under the course legs with a flag and solved from the boat like any other
+  leg, and tapping one makes it the point you are sailing to. They are yours,
+  not the course's: the route and its total never count them. The bin deletes
+  one, and takes two taps to do it — there is no undo, and a stray thumb on the
+  way to windward is exactly the tap that would need one.
 - **Tap SOG, COG or VMG** for the last five minutes, as a time series or a
   distribution. VMG starts over at every tap on a point, because it is measured
   against that point: the other two are facts about the boat and keep the whole
