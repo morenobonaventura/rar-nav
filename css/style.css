@@ -407,6 +407,9 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   margin-top: 4px;
 }
 .legs-sep.warn { color: var(--warn); }
+/* Armed, a destructive button says what the next tap does, in the colour the
+   app uses for marks it would rather you did not hit. */
+.ghost-btn.danger { color: var(--mark); border-color: var(--mark); font-weight: 700; }
 .saved-row { display: flex; align-items: stretch; }
 /* The row is two buttons; the selection has to read as one row, bin included. */
 .saved-row:has(.leg[aria-current="true"]) { background: color-mix(in srgb, var(--wind) 9%, transparent); }

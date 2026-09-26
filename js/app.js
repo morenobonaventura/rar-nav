@@ -13,6 +13,7 @@ import { Gps, Wake, SAMPLE_MS, WINDOW_MS } from "./gps.js";
 import { sparkline, timeSeries, histogram, compass, stats, dial, dialDirection } from "./charts.js";
 import { renderLegs, renderSaved, renderPolarTable, renderMarksTable, renderStats, fillProbe } from "./ui.js";
 import { loadWaypoints, saveWaypoints, addWaypoint, removeWaypoint, nextWaypointName } from "./waypoints.js";
+import { TrackLog, MAX_ACCURACY_M } from "./tracklog.js";
 import { clock } from "./clock.js";
 import { VERSION } from "./version.js";
 
@@ -52,6 +53,9 @@ const state = {
   // nothing else remembers this, so it dies with the render.
   armedDelete: null,
   storageOk: true,
+  // Whether the "clear the log" button has been tapped once. Same two-tap rule
+  // as the waypoint bin, and for the same reason: no undo.
+  armedClear: false,
   historyField: "sog",
   historyView: "series",
   // When the VMG trace last started over. Tapping a point is a change of mind
@@ -62,6 +66,10 @@ const state = {
 
 const gps = new Gps();
 const wake = new Wake();
+// Every fix the satellites give, kept for afterwards. Created before boot
+// because a fix can arrive before the course has finished loading, and the
+// first minutes off the line are not the ones to lose.
+const trackLog = new TrackLog(storage());
 let map, coastLayer, courseLayer, savedLayer, boatLayer, probeLayer, field, simTrail;
 
 // --- boot ------------------------------------------------------------------
@@ -123,12 +131,14 @@ async function boot() {
   startSimulationIfAsked();
 
   // A handle on the running app, for checking what it thinks is going on
-  // without a laptop: rarnav.state.wind, rarnav.gps.history(), and
+  // without a laptop: rarnav.state.wind, rarnav.gps.history(),
+  // rarnav.trackLog.count, and
   // rarnav.feed({lat, lon, sog, cog}) to drive the display from a made-up
   // position when you want to see what a leg will look like before you sail it.
   window.rarnav = {
     state,
     gps,
+    trackLog,
     recompute,
     feed(fix) {
       gps.onFix({
@@ -443,6 +453,13 @@ function refreshProbe() {
 function onGps() {
   const fix = boatFix();
   const fixEl = $("fix");
+
+  // The log is of what the satellites said, so it takes the GPS's own fix and
+  // not `boatFix()`: a position placed by hand is a thing you told the app,
+  // not a thing it observed. A simulation must never reach it either -- it
+  // looks alive, and a CSV with invented fixes in it is worse than no CSV.
+  if (!state.sim && gps.fix && !gps.fix.wind) trackLog.record(gps.fix);
+  if ($("panel-setup").open) renderTrackNote();
   if (state.sim) {
     // One element says this, not two. The badge and the fix chip were both
     // trying to report the same thing in a 390 px rail, and the chip lost --
@@ -752,7 +769,7 @@ function wireUi() {
 
   $("cond-wind").addEventListener("click", () => { syncConditionInputs(); drawDials(); openPanel("panel-conditions"); });
   $("cond-tide").addEventListener("click", () => { syncConditionInputs(); drawDials(); openPanel("panel-conditions"); });
-  $("cond-more").addEventListener("click", () => { syncSetupInputs(); openPanel("panel-setup"); });
+  $("cond-more").addEventListener("click", () => { syncSetupInputs(); renderTrackNote(); openPanel("panel-setup"); });
 
   document.querySelectorAll("[data-close]").forEach((b) => b.addEventListener("click", closePanels));
   $("scrim").addEventListener("click", closePanels);
@@ -805,6 +822,8 @@ function wireUi() {
     recompute();
   });
   $("polar-export").addEventListener("click", exportPolar);
+  $("track-export").addEventListener("click", exportTrack);
+  $("track-clear").addEventListener("click", clearTrack);
 
   // Night mode and wake lock
   $("btn-night").addEventListener("click", () => setNight(!state.night));
@@ -881,13 +900,86 @@ function editPolar(i, j, value) {
   recompute();
 }
 
-function exportPolar() {
-  const blob = new Blob([JSON.stringify(state.polarData, null, 1)], { type: "application/json" });
+// --- the track log ---------------------------------------------------------
+
+/**
+ * What the log holds, in the words that matter on the day: how many fixes,
+ * over what, and what it has had to throw away. The accuracy rule is stated
+ * here rather than in a comment, because a log with holes in it and no
+ * explanation is a log nobody trusts afterwards.
+ */
+function renderTrackNote() {
+  const span = trackLog.span();
+  const parts = [];
+  if (!trackLog.count) {
+    parts.push("Nothing recorded yet.");
+  } else {
+    parts.push(`${trackLog.count.toLocaleString()} fixes, ${fmtSpan(span)}.`);
+  }
+  parts.push(`Every fix is logged while the app is open, except those the phone reports worse than ${MAX_ACCURACY_M} m.`);
+  if (trackLog.dropped)
+    parts.push(`The oldest ${trackLog.dropped.toLocaleString()} were dropped to make room — download before a long race, not after.`);
+  if (trackLog.failed)
+    parts.push("This phone has no storage left, so recording has stopped.");
+  const note = $("track-note");
+  note.textContent = parts.join(" ");
+  note.classList.toggle("warn", trackLog.failed || trackLog.dropped > 0);
+  $("track-export").disabled = !trackLog.count;
+  $("track-clear").disabled = !trackLog.count && !trackLog.failed;
+  if (state.armedClear) return;
+  $("track-clear").textContent = "Clear the log";
+  $("track-clear").classList.remove("danger");
+}
+
+/** "26 Sep 09:15 → 11:02", with the date repeated only when it changes: a log
+ *  taken over two nights has to say which night, and one taken this morning
+ *  should not spend half the line saying so twice. */
+function fmtSpan({ first, last }) {
+  const a = new Date(first);
+  const b = new Date(last);
+  const day = (d) => d.toLocaleDateString(undefined, { day: "2-digit", month: "short" });
+  const sameDay = a.toDateString() === b.toDateString();
+  return `${day(a)} ${fmtClock(a)} → ${sameDay ? "" : `${day(b)} `}${fmtClock(b)}`;
+}
+
+/** The whole log, as a file. Named for when it was taken, because a phone ends
+ *  a season with several of these in its downloads. */
+function exportTrack() {
+  const stamp = new Date(clock.now()).toISOString().slice(0, 16).replace(/[-:]/g, "").replace("T", "-");
+  download(new Blob([trackLog.csv()], { type: "text/csv" }), `rarnav-track-${stamp}.csv`);
+}
+
+/** Two taps, like the waypoint bin: this one cannot be undone either, and it
+ *  is the only button in the app that can throw away a whole race. */
+function clearTrack() {
+  const btn = $("track-clear");
+  if (!state.armedClear) {
+    state.armedClear = true;
+    btn.textContent = "Tap again to clear";
+    btn.classList.add("danger");
+    setTimeout(() => {
+      if (!state.armedClear) return;
+      state.armedClear = false;
+      renderTrackNote();
+    }, 5000);
+    return;
+  }
+  state.armedClear = false;
+  trackLog.clear();
+  renderTrackNote();
+}
+
+function download(blob, name) {
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = "rarnav-polar.json";
+  a.download = name;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+function exportPolar() {
+  download(new Blob([JSON.stringify(state.polarData, null, 1)], { type: "application/json" }),
+           "rarnav-polar.json");
 }
 
 function setNight(on) {

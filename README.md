@@ -39,6 +39,15 @@ After that it runs in airplane mode: everything it needs is cached on the phone.
   not the course's: the route and its total never count them. The bin deletes
   one, and takes two taps to do it — there is no undo, and a stray thumb on the
   way to windward is exactly the tap that would need one.
+- **Every fix is logged** while the app is open — time, position, SOG, COG and
+  the accuracy the phone claimed — and **Setup → Track log** hands the whole
+  thing over as a CSV, timestamped in UTC so it opens anywhere. Fixes the phone
+  reports worse than 50 m are left out, because a track drawn through multipath
+  off a cliff is a track that never happened; a phone that reports no accuracy
+  at all is taken at its word and logged. The log holds 80,000 fixes — about a
+  day at one a second — and drops its oldest to make room, so download it after
+  the race rather than three races later. Nothing is recorded from a simulation
+  or from a position you placed by hand: the log is what the satellites said.
 - **Tap SOG, COG or VMG** for the last five minutes, as a time series or a
   distribution. VMG starts over at every tap on a point, because it is measured
   against that point: the other two are facts about the boat and keep the whole
