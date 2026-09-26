@@ -11,7 +11,8 @@ import { buildCourse, displayLegs, isOnLand, crossesLand, courseLandConflicts, g
 import { createMap, addCoast, CourseLayer, BoatLayer, ProbeLayer, SavedLayer, ArrowField } from "./map.js";
 import { Gps, Wake, SAMPLE_MS, WINDOW_MS } from "./gps.js";
 import { sparkline, timeSeries, histogram, compass, stats, dial, dialDirection } from "./charts.js";
-import { renderLegs, renderSaved, renderPolarTable, renderMarksTable, renderStats, fillProbe } from "./ui.js";
+import { renderLegs, renderSaved, renderPolarTable, renderMarksTable, renderStats, fillProbe,
+         renderRecordingList } from "./ui.js";
 import { loadWaypoints, saveWaypoints, addWaypoint, removeWaypoint, nextWaypointName } from "./waypoints.js";
 import { TrackLog, MAX_ACCURACY_M } from "./tracklog.js";
 import { clock } from "./clock.js";
@@ -53,9 +54,9 @@ const state = {
   // nothing else remembers this, so it dies with the render.
   armedDelete: null,
   storageOk: true,
-  // Whether the "clear the log" button has been tapped once. Same two-tap rule
-  // as the waypoint bin, and for the same reason: no undo.
-  armedClear: false,
+  // Which recording's delete has been tapped once. Same two-tap rule as the
+  // waypoint bin, and for the same reason: no undo.
+  armedRec: null,
   historyField: "sog",
   historyView: "series",
   // When the VMG trace last started over. Tapping a point is a change of mind
@@ -117,6 +118,7 @@ async function boot() {
   map.on("zoomend", () => { courseLayer.refresh(); savedLayer.refresh(); });
 
   wireUi();
+  syncRecordButton(); // a recording left open last time is still running
   rebuildCourse();
   gps.addEventListener("change", onGps);
   gps.start();
@@ -459,7 +461,7 @@ function onGps() {
   // not a thing it observed. A simulation must never reach it either -- it
   // looks alive, and a CSV with invented fixes in it is worse than no CSV.
   if (!state.sim && gps.fix && !gps.fix.wind) trackLog.record(gps.fix);
-  if ($("panel-setup").open) renderTrackNote();
+  if ($("panel-setup").open) renderRecordings();
   if (state.sim) {
     // One element says this, not two. The badge and the fix chip were both
     // trying to report the same thing in a 390 px rail, and the chip lost --
@@ -482,12 +484,7 @@ function onGps() {
   } else if (fix) {
     const acc = Math.round(fix.accuracy ?? 0);
     fixEl.dataset.quality = acc <= 15 ? "good" : acc <= 50 ? "poor" : "none";
-    // "±8 m" rather than "GPS ±8 m": the dot beside it is the GPS, and with a
-    // fourth button in the rail the accuracy is what the abbreviation has to
-    // protect. It is the number that decides whether to trust the boat's
-    // position at all, and an ellipsis through it would be the worst trade in
-    // the rail.
-    $("fix-text").textContent = `±${acc} m${fix.derived ? ", speed from fixes" : ""}`;
+    $("fix-text").textContent = `GPS ±${acc} m${fix.derived ? ", speed from fixes" : ""}`;
   } else {
     fixEl.dataset.quality = "none";
     $("fix-text").textContent = "Waiting for a GPS fix";
@@ -769,7 +766,7 @@ function wireUi() {
 
   $("cond-wind").addEventListener("click", () => { syncConditionInputs(); drawDials(); openPanel("panel-conditions"); });
   $("cond-tide").addEventListener("click", () => { syncConditionInputs(); drawDials(); openPanel("panel-conditions"); });
-  $("cond-more").addEventListener("click", () => { syncSetupInputs(); renderTrackNote(); openPanel("panel-setup"); });
+  $("cond-more").addEventListener("click", () => { syncSetupInputs(); renderRecordings(); openPanel("panel-setup"); });
 
   document.querySelectorAll("[data-close]").forEach((b) => b.addEventListener("click", closePanels));
   $("scrim").addEventListener("click", closePanels);
@@ -822,8 +819,7 @@ function wireUi() {
     recompute();
   });
   $("polar-export").addEventListener("click", exportPolar);
-  $("track-export").addEventListener("click", exportTrack);
-  $("track-clear").addEventListener("click", clearTrack);
+  $("btn-record").addEventListener("click", () => setRecording(!trackLog.recording));
 
   // Night mode and wake lock
   $("btn-night").addEventListener("click", () => setNight(!state.night));
@@ -900,74 +896,90 @@ function editPolar(i, j, value) {
   recompute();
 }
 
-// --- the track log ---------------------------------------------------------
+// --- recordings ------------------------------------------------------------
 
 /**
- * What the log holds, in the words that matter on the day: how many fixes,
- * over what, and what it has had to throw away. The accuracy rule is stated
- * here rather than in a comment, because a log with holes in it and no
- * explanation is a log nobody trusts afterwards.
+ * The switch. Each time it goes on a new recording starts; off closes it, and
+ * the next one will be a separate file.
+ *
+ * Nothing is stored about the switch itself -- a recording left open IS the
+ * on state -- so a phone that locks itself, or an app closed for the night,
+ * comes back recording the same track rather than quietly having stopped.
  */
-function renderTrackNote() {
-  const span = trackLog.span();
-  const parts = [];
-  if (!trackLog.count) {
-    parts.push("Nothing recorded yet.");
-  } else {
-    parts.push(`${trackLog.count.toLocaleString()} fixes, ${fmtSpan(span)}.`);
-  }
-  parts.push(`Every fix is logged while the app is open, except those the phone reports worse than ${MAX_ACCURACY_M} m.`);
+function setRecording(on) {
+  if (on) trackLog.start(clock.now());
+  else trackLog.stop(clock.now());
+  syncRecordButton();
+  if ($("panel-setup").open) renderRecordings();
+}
+
+function syncRecordButton() {
+  const btn = $("btn-record");
+  btn.setAttribute("aria-pressed", String(trackLog.recording));
+  btn.disabled = trackLog.failed;
+  btn.title = trackLog.failed
+    ? "This phone has no storage left, so recording has stopped"
+    : trackLog.recording
+    ? "Recording every fix — tap to stop and close this track"
+    : "Record every fix into a track you can download";
+}
+
+/**
+ * What the log holds, and one row per recording.
+ *
+ * The accuracy rule is stated here rather than in a comment, because a track
+ * with holes in it and no explanation is a track nobody trusts afterwards.
+ */
+function renderRecordings() {
+  const list = trackLog.list();
+  const note = [];
+  if (!list.length) note.push("Nothing recorded yet.");
+  note.push(`Recording keeps every fix while the app is open, except those the phone reports worse than ${MAX_ACCURACY_M} m.`);
   if (trackLog.dropped)
-    parts.push(`The oldest ${trackLog.dropped.toLocaleString()} were dropped to make room — download before a long race, not after.`);
+    note.push(`The oldest ${trackLog.dropped.toLocaleString()} fixes were dropped to make room — download after a race, not after three.`);
   if (trackLog.failed)
-    parts.push("This phone has no storage left, so recording has stopped.");
-  const note = $("track-note");
-  note.textContent = parts.join(" ");
-  note.classList.toggle("warn", trackLog.failed || trackLog.dropped > 0);
-  $("track-export").disabled = !trackLog.count;
-  $("track-clear").disabled = !trackLog.count && !trackLog.failed;
-  if (state.armedClear) return;
-  $("track-clear").textContent = "Clear the log";
-  $("track-clear").classList.remove("danger");
+    note.push("This phone has no storage left, so recording has stopped.");
+  const noteEl = $("track-note");
+  noteEl.textContent = note.join(" ");
+  noteEl.classList.toggle("warn", trackLog.failed || trackLog.dropped > 0);
+
+  renderRecordingList($("recordings"), list, {
+    armedId: state.armedRec,
+    onExport: exportRecording,
+    onDelete: deleteRecording,
+  });
+  syncRecordButton();
 }
 
-/** "26 Sep 09:15 → 11:02", with the date repeated only when it changes: a log
- *  taken over two nights has to say which night, and one taken this morning
- *  should not spend half the line saying so twice. */
-function fmtSpan({ first, last }) {
-  const a = new Date(first);
-  const b = new Date(last);
-  const day = (d) => d.toLocaleDateString(undefined, { day: "2-digit", month: "short" });
-  const sameDay = a.toDateString() === b.toDateString();
-  return `${day(a)} ${fmtClock(a)} → ${sameDay ? "" : `${day(b)} `}${fmtClock(b)}`;
+/** One recording as a file, named for when it started: a phone ends a season
+ *  with several of these in its downloads. */
+function exportRecording(id) {
+  const r = trackLog.list().find((x) => x.id === id);
+  if (!r) return;
+  download(new Blob([trackLog.csv(id)], { type: "text/csv" }),
+           `rarnav-${fmtFileStamp(r.startedAt ?? clock.now())}.csv`);
 }
 
-/** The whole log, as a file. Named for when it was taken, because a phone ends
- *  a season with several of these in its downloads. */
-function exportTrack() {
-  const stamp = new Date(clock.now()).toISOString().slice(0, 16).replace(/[-:]/g, "").replace("T", "-");
-  download(new Blob([trackLog.csv()], { type: "text/csv" }), `rarnav-track-${stamp}.csv`);
-}
-
-/** Two taps, like the waypoint bin: this one cannot be undone either, and it
- *  is the only button in the app that can throw away a whole race. */
-function clearTrack() {
-  const btn = $("track-clear");
-  if (!state.armedClear) {
-    state.armedClear = true;
-    btn.textContent = "Tap again to clear";
-    btn.classList.add("danger");
+/** Two taps, like the waypoint bin. This is the only button in the app that
+ *  can throw away a whole race. */
+function deleteRecording(id) {
+  if (state.armedRec !== id) {
+    state.armedRec = id;
+    renderRecordings();
     setTimeout(() => {
-      if (!state.armedClear) return;
-      state.armedClear = false;
-      renderTrackNote();
+      if (state.armedRec !== id) return;
+      state.armedRec = null;
+      if ($("panel-setup").open) renderRecordings();
     }, 5000);
     return;
   }
-  state.armedClear = false;
-  trackLog.clear();
-  renderTrackNote();
+  state.armedRec = null;
+  trackLog.remove(id);
+  renderRecordings();
 }
+
+const fmtFileStamp = (t) =>
+  new Date(t).toISOString().slice(0, 16).replace(/[-:]/g, "").replace("T", "-");
 
 function download(blob, name) {
   const a = document.createElement("a");

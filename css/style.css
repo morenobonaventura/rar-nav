@@ -105,10 +105,11 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   border-bottom: 1px solid var(--rule);
   font-size: 13px;
 }
-/* Four actions, a clock, a build number and the fix quality across 393 px: the
-   gaps and the button padding are as tight as they are because the one thing in
-   here that must never be abbreviated is how good the fix is. */
-.rail { gap: 8px; }
+/* Two lines: what the app knows on the first, what you can do to it on the
+   second. Five actions and a clock never fitted across 393 px, and the thing
+   that was giving way was how good the fix is -- which is the one number in
+   here that must never be abbreviated. */
+.rail { gap: 8px; flex-wrap: wrap; }
 /* Which build is on the phone, small enough to ignore until it is the question.
    First in the rail so it is in the same place whatever else the rail is
    saying, and never wider than four characters. */
@@ -187,14 +188,21 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 /* The actions keep their width and their one line: the rail's flexible things
    are the fix chip and the simulation badge, both of which can ellipsise, and a
    button that folds in half is a button nobody can read at a glance. */
-.rail-actions { display: flex; gap: 4px; margin-left: auto; flex: none; }
+/* The actions own the second line and spread across it, so each button sits in
+   the same place every time it is reached for in the dark. */
+.rail-actions {
+  display: flex;
+  gap: 4px;
+  flex: 1 0 100%;
+  justify-content: space-between;
+  margin-top: 2px;
+}
 .rail-actions .icon { flex: none; white-space: nowrap; }
-/* Saving a waypoint is the one rail action with no state to report, so it is a
-   plus rather than a word -- and the width it gives back is what keeps "GPS
-   ±8 m" from being ellipsised into nothing. */
-.icon.plus { padding: 5px 12px; font-size: 15px; line-height: 1.1; }
-.icon.plus:disabled { opacity: .35; }
-#clock + .rail-actions { margin-left: 10px; }
+.icon:disabled { opacity: .35; }
+/* Recording is the one action with a consequence that outlives the tap, so it
+   goes red rather than ink when it is on: at a glance across the cockpit, that
+   is the difference between a race being logged and not. */
+.icon.rec[aria-pressed="true"] { background: var(--mark); border-color: var(--mark); color: var(--paper); }
 .icon {
   padding: 5px 9px;
   border: 1px solid var(--rule);
@@ -422,6 +430,16 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 }
 /* Armed, it stops being an icon and says what the next tap does. */
 .bin.armed { width: auto; padding: 0 12px; color: var(--mark); font-size: 11.5px; font-weight: 700; letter-spacing: .02em; }
+
+/* One row per recording: what it is, then the two things you can do to it. */
+.recordings { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 1px; }
+.rec-row { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-top: 1px solid var(--rule); }
+.rec-row:first-child { border-top: 0; }
+.rec-when { flex: 1; min-width: 0; font-size: 13px; }
+.rec-when b { font-weight: 600; font-variant-numeric: tabular-nums; }
+.rec-when span { display: block; font-size: 11.5px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.rec-live { color: var(--mark); font-weight: 700; }
+.rec-row .ghost-btn { flex: none; padding: 5px 10px; font-size: 12.5px; }
 
 .disclaimer { margin: 0; padding: 8px 14px calc(10px + env(safe-area-inset-bottom)); font-size: 11px; color: var(--ink-soft); border-top: 1px solid var(--rule); }
 
