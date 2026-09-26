@@ -130,6 +130,57 @@ const TRASH = `<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true
   <path d="M10.5 10.5v7M13.5 10.5v7"/>
 </svg>`;
 
+/**
+ * The recordings in Setup, newest first.
+ *
+ * Each row says when it ran and how much is in it, and carries the only two
+ * things you can do to one: take it off the phone, or throw it away. Deleting
+ * takes two taps -- there is no undo and no copy anywhere else, and this is
+ * the one control in the app that can lose a whole race.
+ */
+export function renderRecordingList(host, rows, { armedId, onExport, onDelete }) {
+  host.replaceChildren();
+  rows.forEach((r) => {
+    const li = el("li", "rec-row");
+    const when = el("div", "rec-when");
+    when.append(el("b", null, fmtRecSpan(r)));
+    const facts = [`${r.count.toLocaleString()} ${r.count === 1 ? "fix" : "fixes"}`];
+    if (r.dropped) facts.push(`${r.dropped.toLocaleString()} dropped`);
+    const sub = el("span", null, facts.join(" · "));
+    if (r.recording) {
+      sub.append(document.createTextNode(" · "));
+      sub.append(el("em", "rec-live", "RECORDING"));
+    }
+    when.append(sub);
+    li.append(when);
+
+    const csv = el("button", "ghost-btn", "CSV");
+    csv.type = "button";
+    csv.disabled = !r.count;
+    csv.title = `Download this recording as a CSV file`;
+    csv.addEventListener("click", () => onExport(r.id));
+
+    const armed = r.id === armedId;
+    const del = el("button", `ghost-btn${armed ? " danger" : ""}`, armed ? "Sure?" : "Delete");
+    del.type = "button";
+    del.addEventListener("click", () => onDelete(r.id));
+
+    li.append(csv, del);
+    host.append(li);
+  });
+}
+
+/** "26 Sep 09:15 → 11:02", with the date repeated only when it changes, and an
+ *  open recording left open rather than given an end it does not have yet. */
+function fmtRecSpan(r) {
+  const a = new Date(r.startedAt);
+  const day = (d) => d.toLocaleDateString(undefined, { day: "2-digit", month: "short" });
+  if (r.recording) return `${day(a)} ${fmtClock(a)} →`;
+  const b = new Date(r.endedAt ?? r.lastT ?? r.startedAt);
+  const sameDay = a.toDateString() === b.toDateString();
+  return `${day(a)} ${fmtClock(a)} → ${sameDay ? "" : `${day(b)} `}${fmtClock(b)}`;
+}
+
 /** Fill the tapped-point readout. */
 export function fillProbe(refs, leg, title, point) {
   refs.name.textContent = title;

@@ -28,8 +28,10 @@
             title="Set the boat position by tapping the map">Position</button>
     <button id="btn-night" type="button" class="icon" aria-pressed="false" title="Night colours">Night</button>
     <button id="btn-awake" type="button" class="icon" aria-pressed="false" title="Keep the screen awake">Awake</button>
-    <button id="btn-waypoint" type="button" class="icon plus"
-            title="Save the tapped point — or the boat's position — as a waypoint">+<span class="sr">Add waypoint</span></button>
+    <button id="btn-waypoint" type="button" class="icon"
+            title="Save the tapped point — or the boat's position — as a waypoint">+ WP</button>
+    <button id="btn-record" type="button" class="icon rec" aria-pressed="false"
+            title="Record every fix into a track you can download">Record</button>
   </div>
 </header>
 
@@ -183,12 +185,9 @@
   <p class="hint" id="marks-note"></p>
   <div class="table-scroll"><table class="polar" id="marks-table"></table></div>
 
-  <h3>Track log</h3>
+  <h3>Recordings</h3>
   <p class="hint" id="track-note"></p>
-  <div class="panel-actions spread">
-    <button type="button" id="track-clear" class="ghost-btn">Clear the log</button>
-    <button type="button" id="track-export" class="ghost-btn">Download CSV</button>
-  </div>
+  <ul class="recordings" id="recordings"></ul>
 
   <div class="panel-actions"><button type="button" data-close class="primary">Done</button></div>
 </dialog>
