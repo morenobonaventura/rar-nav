@@ -10,7 +10,7 @@
  * and move VERSION in js/version.js with it, because that is the number the
  * rail shows and it must name the build actually being served.
  */
-const CACHE = "rarnav-v22";
+const CACHE = "rarnav-v23";
 
 const ASSETS = [
   "./",
@@ -27,6 +27,7 @@ const ASSETS = [
   "js/charts.js",
   "js/ui.js",
   "js/waypoints.js",
+  "js/tracklog.js",
   "vendor/leaflet.js",
   "vendor/leaflet.css",
   "data/aeolian_coast.geojson",
