@@ -235,6 +235,17 @@ export class TrackLog {
     return out;
   }
 
+  /** One recording as points, for drawing. Anything unparseable is dropped:
+   *  a chart is no place to find out that one line of the log got cut short. */
+  points(id) {
+    return this.rows(id)
+      .map((line) => {
+        const [t, lat, lon] = line.split(",");
+        return { t: Number(t), lat: Number(lat), lon: Number(lon) };
+      })
+      .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lon));
+  }
+
   /** One recording as a CSV file, timestamps in UTC so it lands anywhere. */
   csv(id) {
     const body = this.rows(id).map((line) => {
@@ -275,6 +286,24 @@ export class TrackLog {
       this.store?.setItem(`${LOG_KEY}.index`, JSON.stringify(this.index));
     } catch { /* reported by the next flush */ }
   }
+}
+
+/**
+ * At most `max` points, evenly spaced, with the first and last always kept.
+ *
+ * A day's recording is eighty thousand fixes and a phone will not draw that as
+ * a polyline, but at chart scale it does not have to: a couple of thousand
+ * points is already finer than the line is wide. The ends are kept whatever
+ * the stride, because where a track starts and stops is the thing being looked
+ * at.
+ */
+export function thin(points, max) {
+  if (!Array.isArray(points) || points.length <= max || max < 2) return points ?? [];
+  const stride = (points.length - 1) / (max - 1);
+  const out = [];
+  for (let i = 0; i < max - 1; i++) out.push(points[Math.round(i * stride)]);
+  out.push(points[points.length - 1]);
+  return out;
 }
 
 const valid = (r) =>

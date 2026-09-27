@@ -8,13 +8,13 @@
 
 import { Polar, solveLeg, solveRoute, tackPath, fmtBearing, fmtDuration, fmtClock, norm360, haversineNm, initialBearing, vmgToWind, vmgToPoint, shiftFromCog } from "./nav.js";
 import { buildCourse, displayLegs, isOnLand, crossesLand, courseLandConflicts, gateWidthNm } from "./course.js";
-import { createMap, addCoast, CourseLayer, BoatLayer, ProbeLayer, SavedLayer, ArrowField } from "./map.js";
+import { createMap, addCoast, CourseLayer, BoatLayer, ProbeLayer, SavedLayer, TrackLayer, ArrowField } from "./map.js";
 import { Gps, Wake, SAMPLE_MS, WINDOW_MS } from "./gps.js";
 import { sparkline, timeSeries, histogram, compass, stats, dial, dialDirection } from "./charts.js";
 import { renderLegs, renderSaved, renderPolarTable, renderMarksTable, renderStats, fillProbe,
          renderRecordingList } from "./ui.js";
 import { loadWaypoints, saveWaypoints, addWaypoint, removeWaypoint, nextWaypointName } from "./waypoints.js";
-import { TrackLog, MAX_ACCURACY_M } from "./tracklog.js";
+import { TrackLog, MAX_ACCURACY_M, thin } from "./tracklog.js";
 import { clock } from "./clock.js";
 import { VERSION } from "./version.js";
 
@@ -57,6 +57,10 @@ const state = {
   // Which recording's delete has been tapped once. Same two-tap rule as the
   // waypoint bin, and for the same reason: no undo.
   armedRec: null,
+  // Which recording is drawn on the chart, if any. Held in memory only: a
+  // track put up to look at something is not a setting, and coming back to a
+  // live instrument with last week's race across it would be a surprise.
+  shownRec: null,
   historyField: "sog",
   historyView: "series",
   // When the VMG trace last started over. Tapping a point is a change of mind
@@ -71,7 +75,7 @@ const wake = new Wake();
 // because a fix can arrive before the course has finished loading, and the
 // first minutes off the line are not the ones to lose.
 const trackLog = new TrackLog(storage());
-let map, coastLayer, courseLayer, savedLayer, boatLayer, probeLayer, field, simTrail;
+let map, coastLayer, courseLayer, trackLayer, savedLayer, boatLayer, probeLayer, field, simTrail;
 
 // --- boot ------------------------------------------------------------------
 
@@ -93,6 +97,9 @@ async function boot() {
 
   map = createMap($("map"), course.bbox);
   coastLayer = addCoast(map, coast);
+  // Under everything: a recorded track is where the boat has been, and it must
+  // never draw over the marks it is being compared against.
+  trackLayer = new TrackLayer(map);
   courseLayer = new CourseLayer(map);
   // Under the boat and whatever is being sailed to, over the course: a saved
   // point is a thing on the chart, not a thing in the way of reading it.
@@ -945,10 +952,41 @@ function renderRecordings() {
 
   renderRecordingList($("recordings"), list, {
     armedId: state.armedRec,
+    shownId: state.shownRec,
+    onShow: showRecording,
     onExport: exportRecording,
     onDelete: deleteRecording,
   });
   syncRecordButton();
+}
+
+/**
+ * Put a recording on the chart, and get out of the way.
+ *
+ * Tapping a row is a request to look at that track, not to read about it, so
+ * the panel closes behind it and the map frames the whole thing. The same row
+ * again takes it off. Thinned for drawing -- a day of fixes is eighty thousand
+ * points and at chart scale a couple of thousand is already finer than the
+ * line is wide.
+ */
+function showRecording(id) {
+  if (state.shownRec === id) {
+    state.shownRec = null;
+    trackLayer.clear();
+    renderRecordings();
+    return;
+  }
+  const points = thin(trackLog.points(id), 2000);
+  if (!points.length) return;
+  state.shownRec = id;
+  const bounds = trackLayer.draw(points);
+  renderRecordings();
+  closePanels();
+  // After the panel closes, because the map is a different size without it.
+  requestAnimationFrame(() => {
+    map.invalidateSize();
+    if (bounds) map.fitBounds(bounds, { padding: [28, 28], maxZoom: 15 });
+  });
 }
 
 /** One recording as a file, named for when it started: a phone ends a season
@@ -974,6 +1012,10 @@ function deleteRecording(id) {
     return;
   }
   state.armedRec = null;
+  if (state.shownRec === id) {
+    state.shownRec = null;
+    trackLayer.clear();
+  }
   trackLog.remove(id);
   renderRecordings();
 }
@@ -1006,6 +1048,7 @@ function setNight(on) {
     color: getComputedStyle(document.body).getPropertyValue("--land-edge").trim(),
   });
   rebuildCourse();
+  trackLayer.refresh();
   boatLayer.update(boatFix());
   drawInstruments();
   if ($("panel-history").open) drawHistory();
