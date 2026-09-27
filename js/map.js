@@ -301,6 +301,61 @@ export class ProbeLayer {
 }
 
 /**
+ * A recording, drawn as the track it was.
+ *
+ * In the boat's own green, because that is what it is -- where this boat has
+ * already been -- and thinner and paler than the boat marker so that the thing
+ * moving now still reads first. Hollow circle where the recording started,
+ * filled where it stopped, since a track with no ends on it is a line you have
+ * to guess the direction of.
+ */
+export class TrackLayer {
+  constructor(map) {
+    this.map = map;
+    this.group = L.layerGroup().addTo(map);
+    this.points = null;
+  }
+
+  /** Returns the bounds drawn, for framing, or null when there is nothing. */
+  draw(points) {
+    this.group.clearLayers();
+    this.points = points?.length ? points : null;
+    if (!this.points) return null;
+
+    const latlngs = this.points.map((p) => [p.lat, p.lon]);
+    const colour = css("--boat");
+    L.polyline(latlngs, {
+      color: colour, weight: 2.5, opacity: 0.8,
+      lineJoin: "round", lineCap: "round", interactive: false,
+    }).addTo(this.group);
+
+    const ends = [[latlngs[0], false], [latlngs[latlngs.length - 1], true]];
+    for (const [at, filled] of ends) {
+      L.circleMarker(at, {
+        radius: 4.5,
+        color: colour,
+        weight: 2,
+        fillColor: filled ? colour : css("--paper"),
+        fillOpacity: 1,
+        interactive: false,
+      }).addTo(this.group);
+    }
+    return L.latLngBounds(latlngs);
+  }
+
+  /** Redraw what is already shown -- the colours are read from CSS at draw
+   *  time, so night mode has to come back through here. */
+  refresh() {
+    return this.draw(this.points);
+  }
+
+  clear() {
+    this.group.clearLayers();
+    this.points = null;
+  }
+}
+
+/**
  * The waypoints you saved yourself, drawn on the chart.
  *
  * A flag, in ink rather than in any of the colours the course already owns:

@@ -435,7 +435,10 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .recordings { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 1px; }
 .rec-row { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-top: 1px solid var(--rule); }
 .rec-row:first-child { border-top: 0; }
-.rec-when { flex: 1; min-width: 0; font-size: 13px; }
+.rec-when { flex: 1; min-width: 0; font-size: 13px; text-align: left; padding: 2px 0; }
+.rec-when[aria-current="true"] b { color: var(--boat); }
+.rec-when:disabled { opacity: .5; }
+.rec-shown { font-style: normal; font-weight: 600; color: var(--boat); }
 .rec-when b { font-weight: 600; font-variant-numeric: tabular-nums; }
 .rec-when span { display: block; font-size: 11.5px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
 .rec-live { color: var(--mark); font-weight: 700; }

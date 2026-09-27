@@ -44,7 +44,10 @@ After that it runs in airplane mode: everything it needs is cached on the phone.
   starts; off closes it, and the next one is a separate track. The switch is
   stored rather than the session, so a phone that locks itself, or an app closed
   for the night, comes back recording the same track instead of having quietly
-  stopped. **Setup → Recordings** lists them newest first, with a CSV of each
+  stopped. **Setup → Recordings** lists them newest first. Tap one and it is
+  drawn on the chart — the panel closes and the map frames the whole track, in
+  the boat's own green with a hollow circle where it started and a filled one
+  where it stopped; tap it again to take it off. Each row also carries a CSV
   (UTC timestamps, so it opens anywhere) and a delete that takes two taps.
   Fixes the phone reports worse than 50 m are left out, because a track drawn
   through multipath off a cliff is a track that never happened; a phone that

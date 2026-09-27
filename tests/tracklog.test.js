@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { TrackLog, LOG_KEY, LEGACY_KEY, CSV_HEADER } from "../js/tracklog.js";
+import { TrackLog, LOG_KEY, LEGACY_KEY, CSV_HEADER, thin } from "../js/tracklog.js";
 
 /** A localStorage stand-in that can be told to run out of room. */
 const store = (limitBytes = Infinity) => {
@@ -237,4 +237,28 @@ test("the log kept before recordings had a switch is listed as one", () => {
   assert.equal(r.recording, false, "an old log is never the one being written");
   assert.equal(log.csv(r.id).trim().split("\n").length, 3);
   assert.equal(log.recording, false);
+});
+
+test("a recording comes back as points for the chart", () => {
+  const log = new TrackLog(store());
+  const r = log.start(1e12);
+  feed(log, 1e12, 3);
+  assert.deepEqual(log.points(r.id), [
+    { t: 1e12, lat: 38.5414, lon: 15.8412 },
+    { t: 1e12 + 1000, lat: 38.5414, lon: 15.8412 },
+    { t: 1e12 + 2000, lat: 38.5414, lon: 15.8412 },
+  ]);
+  assert.deepEqual(log.points("not-a-recording"), []);
+});
+
+test("thinning keeps the ends, the order and the count", () => {
+  const points = Array.from({ length: 1000 }, (_, i) => ({ t: i, lat: 38 + i / 1e4, lon: 15 }));
+  const few = thin(points, 100);
+  assert.equal(few.length, 100);
+  assert.deepEqual(few[0], points[0], "a track has to start where it started");
+  assert.deepEqual(few[few.length - 1], points[999], "and stop where it stopped");
+  assert.deepEqual(few.map((p) => p.t), [...few.map((p) => p.t)].sort((a, b) => a - b));
+  assert.equal(thin(points, 5000), points, "a short track is left alone");
+  assert.deepEqual(thin([], 100), []);
+  assert.deepEqual(thin(null, 100), []);
 });

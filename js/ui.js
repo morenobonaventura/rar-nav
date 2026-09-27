@@ -138,11 +138,19 @@ const TRASH = `<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true
  * takes two taps -- there is no undo and no copy anywhere else, and this is
  * the one control in the app that can lose a whole race.
  */
-export function renderRecordingList(host, rows, { armedId, onExport, onDelete }) {
+export function renderRecordingList(host, rows, { armedId, shownId, onShow, onExport, onDelete }) {
   host.replaceChildren();
   rows.forEach((r) => {
     const li = el("li", "rec-row");
-    const when = el("div", "rec-when");
+
+    // The row itself is the button: tapping a recording puts it on the chart
+    // and gets out of the way, which is the only thing anyone opens this list
+    // to do. Tapping the one already drawn takes it off again.
+    const when = el("button", "rec-when");
+    when.type = "button";
+    when.disabled = !r.count;
+    if (r.id === shownId) when.setAttribute("aria-current", "true");
+    when.title = r.id === shownId ? "Take this track off the chart" : "Draw this track on the chart";
     when.append(el("b", null, fmtRecSpan(r)));
     const facts = [`${r.count.toLocaleString()} ${r.count === 1 ? "fix" : "fixes"}`];
     if (r.dropped) facts.push(`${r.dropped.toLocaleString()} dropped`);
@@ -151,7 +159,12 @@ export function renderRecordingList(host, rows, { armedId, onExport, onDelete })
       sub.append(document.createTextNode(" · "));
       sub.append(el("em", "rec-live", "RECORDING"));
     }
+    if (r.id === shownId) {
+      sub.append(document.createTextNode(" · "));
+      sub.append(el("em", "rec-shown", "on the chart"));
+    }
     when.append(sub);
+    when.addEventListener("click", () => onShow(r.id));
     li.append(when);
 
     const csv = el("button", "ghost-btn", "CSV");
