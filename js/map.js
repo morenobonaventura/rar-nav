@@ -15,13 +15,18 @@
 
 const DEG = Math.PI / 180;
 
-export function createMap(el, bbox) {
+/**
+ * `bbox` frames the course at boot; `limits` is how far the chart may be panned
+ * -- the whole area there is coastline for, so a delivery down the Tyrrhenian
+ * or a regatta on another part of this coast is not a boat on a blank field.
+ */
+export function createMap(el, bbox, limits = bbox) {
   const map = L.map(el, {
     zoomControl: false,
     attributionControl: true,
     tap: false, // let our own click handler own taps; Leaflet's shim double-fires on iOS
     maxZoom: 16,
-    minZoom: 7,
+    minZoom: 6, // the whole of Italy on one screen, which is the point of the wide coast
     zoomSnap: 0,
     worldCopyJump: false,
   });
@@ -32,23 +37,32 @@ export function createMap(el, bbox) {
     [bbox.lat_max, bbox.lon_max],
   ]);
   map.setMaxBounds([
-    [bbox.lat_min - 0.6, bbox.lon_min - 0.6],
-    [bbox.lat_max + 0.6, bbox.lon_max + 0.6],
+    [limits.lat_min - 0.6, limits.lon_min - 0.6],
+    [limits.lat_max + 0.6, limits.lon_max + 0.6],
   ]);
   return map;
 }
 
 const css = (name) => getComputedStyle(document.body).getPropertyValue(name).trim();
 
-/** Land polygons, drawn on canvas so a few thousand points stay cheap to pan. */
+/**
+ * Land polygons, drawn on canvas so a few thousand points stay cheap to pan.
+ *
+ * Only islands get an outline. Everything else -- Sicily, the mainland, the
+ * Balkan and African coasts -- reaches the edge of the box its data was cut
+ * from, and stroking that would draw a hard line straight across the land
+ * where one file stops and the next begins. The islands never touch a box
+ * edge, so their outline is the real coast and worth having: they are the
+ * things the course goes round.
+ */
 export function addCoast(map, geojson) {
   return L.geoJSON(geojson, {
     renderer: L.canvas({ padding: 0.3 }),
-    style: () => ({
+    style: (f) => ({
       fillColor: css("--land"),
       fillOpacity: 1,
       color: css("--land-edge"),
-      weight: 1,
+      weight: f.properties.kind === "island" ? 1 : 0,
       lineJoin: "round",
     }),
     interactive: false,

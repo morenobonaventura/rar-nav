@@ -80,13 +80,27 @@ let map, coastLayer, courseLayer, trackLayer, savedLayer, boatLayer, probeLayer,
 // --- boot ------------------------------------------------------------------
 
 async function boot() {
-  const [course, coast, polar] = await Promise.all([
+  const [course, coast, wide, polar] = await Promise.all([
     fetch("data/course.json").then((r) => r.json()),
     fetch("data/aeolian_coast.geojson").then((r) => r.json()),
+    // The rest of the Italian coast, coarser and around the outside. Optional
+    // on purpose: a phone still holding an older cached copy of the app has
+    // never heard of this file, and a missing horizon must not cost it the
+    // course it does have.
+    fetch("data/italy_coast.geojson").then((r) => r.json()).catch(() => null),
     fetch("data/polar_dufour40.json").then((r) => r.json()),
   ]);
   state.course = course;
-  state.coast = coast;
+  // One collection: the drawing, the on-land test and the land-crossing check
+  // all ask the same question of it, and the answer should not depend on which
+  // of them is asking. The race area is in it at 15 m and the rest of the
+  // country at about half a kilometre, so a warning out there is a half-a-
+  // kilometre judgement -- right about a peninsula in the way, not to be
+  // trusted about a headland you are rounding close.
+  state.coast = wide
+    ? { ...coast, features: [...coast.features, ...wide.features] }
+    : coast;
+  state.coastLimits = wide?.properties?.bbox ?? course.bbox;
   state.variation = course.magnetic_variation_deg;
   state.polarData = loadPolar(polar);
   state.polar = Polar.fromJSON(state.polarData);
@@ -95,8 +109,8 @@ async function boot() {
 
   $("version").textContent = VERSION;
 
-  map = createMap($("map"), course.bbox);
-  coastLayer = addCoast(map, coast);
+  map = createMap($("map"), course.bbox, state.coastLimits);
+  coastLayer = addCoast(map, state.coast);
   // Under everything: a recorded track is where the boat has been, and it must
   // never draw over the marks it is being compared against.
   trackLayer = new TrackLayer(map);
