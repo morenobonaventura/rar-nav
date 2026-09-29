@@ -8,9 +8,37 @@ observe, tap a mark, and get distance, bearing (true and magnetic) and an ETA
 from your own polar — plus live SOG and COG from the phone's GPS with five
 minutes of history behind them.
 
+The chart is the Aeolian coastline at 15 m, surveyed from OpenStreetMap for the
+race, with the rest of the Italian coast around it at about half a kilometre —
+enough to see which way Calabria is on a delivery, or to run the same instrument
+at a regatta somewhere else on this coast. Both come from OSM; neither is a
+substitute for a chart, and there are no depths in either.
+
 It is deliberately *not* a router. The isochrone optimiser that plans the race
 from forecast grids is a separate project; this is the instrument you hold on
 deck once you are sailing it.
+
+## The chart
+
+Two files, two resolutions, one drawing:
+
+| File | Covers | Resolution | From |
+|---|---|---|---|
+| `data/aeolian_coast.geojson` | the race, 37.85–39.05 N | 15 m | Overpass, `natural=coastline` |
+| `data/italy_coast.geojson` | 35.4–46.6 N, 6.2–18.8 E | ~500 m | `@geo-maps/earth-lands-10m` |
+
+The wide file has the race area cut out of it, so every point on the chart comes
+from exactly one source and the two can never disagree about where the water is.
+Only islands are drawn with an outline: everything else reaches the edge of the
+box its data was cut from, and stroking that would draw a hard line across the
+land where one file stops and the next begins.
+
+The land warnings — a mark on land, a leg that would run over it — are asked of
+both. Out in the wide area that makes them half-a-kilometre judgements: right
+about a peninsula in the way, not to be trusted about a headland you are
+rounding close.
+
+Rebuild either with the scripts in `tools/`; both print what they did.
 
 ## Using it on the boat
 

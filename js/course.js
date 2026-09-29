@@ -165,20 +165,54 @@ export function courseLandConflicts(waypoints, coast) {
   return out;
 }
 
-/** Ray-casting point-in-polygon, for warning that a mark sits on land. */
+/**
+ * Ray-casting point-in-polygon, for warning that a mark sits on land.
+ *
+ * Every feature is rejected on its bounding box first, which is what makes the
+ * coarse coastline round the rest of Italy affordable: `crossesLand` asks this
+ * question eight hundred times a leg, and without the box test each of those
+ * would walk every ring in the file. The boxes are worked out once, on the
+ * first question asked of each feature, and kept on it.
+ */
 export function isOnLand(pt, coastGeoJSON) {
   for (const f of coastGeoJSON.features) {
-    const ring = f.geometry.coordinates[0];
-    let inside = false;
-    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-      const [xi, yi] = ring[i];
-      const [xj, yj] = ring[j];
-      if (yi > pt.lat !== yj > pt.lat && pt.lon < ((xj - xi) * (pt.lat - yi)) / (yj - yi) + xi)
-        inside = !inside;
+    const b = f.bbox ?? (f.bbox = bboxOf(f));
+    if (pt.lon < b[0] || pt.lon > b[2] || pt.lat < b[1] || pt.lat > b[3]) continue;
+    for (const ring of ringsOf(f)) {
+      let inside = false;
+      for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        const [xi, yi] = ring[i];
+        const [xj, yj] = ring[j];
+        if (yi > pt.lat !== yj > pt.lat && pt.lon < ((xj - xi) * (pt.lat - yi)) / (yj - yi) + xi)
+          inside = !inside;
+      }
+      if (inside) return f.properties.kind;
     }
-    if (inside) return f.properties.kind;
   }
   return null;
+}
+
+/** The outer ring of each polygon in a feature. Holes are ignored on purpose:
+ *  a lake inside a headland is not water this boat can reach. */
+function ringsOf(f) {
+  if (f._rings) return f._rings;
+  const g = f.geometry;
+  f._rings = g.type === "MultiPolygon" ? g.coordinates.map((poly) => poly[0]) : [g.coordinates[0]];
+  return f._rings;
+}
+
+/** [west, south, east, north], as GeoJSON orders a bbox. */
+function bboxOf(f) {
+  let w = Infinity, s = Infinity, e = -Infinity, n = -Infinity;
+  for (const ring of ringsOf(f)) {
+    for (const [x, y] of ring) {
+      if (x < w) w = x;
+      if (x > e) e = x;
+      if (y < s) s = y;
+      if (y > n) n = y;
+    }
+  }
+  return [w, s, e, n];
 }
 
 /**
