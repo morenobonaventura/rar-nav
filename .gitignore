@@ -3,3 +3,4 @@ tools/coastline_raw.json
 
 .DS_Store
 node_modules/
+www/

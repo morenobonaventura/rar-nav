@@ -18,6 +18,10 @@ It is deliberately *not* a router. The isochrone optimiser that plans the race
 from forecast grids is a separate project; this is the instrument you hold on
 deck once you are sailing it.
 
+There is an iOS app of it too, for the one thing a web app on an iPhone cannot
+do: keep recording with the screen off. Same files in a native shell — see
+[IOS.md](IOS.md).
+
 ## The chart
 
 Two files, two resolutions, one drawing:

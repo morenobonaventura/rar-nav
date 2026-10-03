@@ -1,0 +1,11 @@
+{
+  "appId": "net.rarnav.app",
+  "appName": "RAR Nav",
+  "webDir": "www",
+  "server": { "iosScheme": "rarnav" },
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#dceaf2",
+    "limitsNavigationsToAppBoundDomains": true
+  }
+}
