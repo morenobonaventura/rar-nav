@@ -36,6 +36,10 @@ public class BackgroundTrackPlugin: CAPPlugin, CAPBridgedPlugin, CLLocationManag
         CAPPluginMethod(name: "share", returnType: CAPPluginReturnPromise)
     ]
 
+    /// CoreLocation hands over the last known position first, which on a boat
+    /// can be where it was moored. Older than this and it is history, not a fix.
+    private static let maxFixAge: TimeInterval = 30
+
     private let manager = CLLocationManager()
     private let queue = DispatchQueue(label: "net.rarnav.track", qos: .utility)
     /// Monotonic within a run of the app; the file carries it across runs.
@@ -121,6 +125,13 @@ public class BackgroundTrackPlugin: CAPPlugin, CAPBridgedPlugin, CLLocationManag
 
     public func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         for location in locations {
+            // A negative horizontal accuracy is CoreLocation saying it does not
+            // believe this position at all -- not "accuracy unknown", which is
+            // what a null would mean to everything above here. And a fix that
+            // arrives half an hour stale is a fix about somewhere the boat has
+            // left. Neither is data; both are dropped before anything sees them.
+            guard location.horizontalAccuracy >= 0 else { continue }
+            guard abs(location.timestamp.timeIntervalSinceNow) < Self.maxFixAge else { continue }
             seq += 1
             let fix = payload(for: location, seq: seq)
             append(fix)
@@ -160,8 +171,9 @@ public class BackgroundTrackPlugin: CAPPlugin, CAPBridgedPlugin, CLLocationManag
             "coords": [
                 "latitude": location.coordinate.latitude,
                 "longitude": location.coordinate.longitude,
-                // Negative means "no idea", which is a null to a web page.
-                "accuracy": location.horizontalAccuracy >= 0 ? location.horizontalAccuracy : NSNull(),
+                "accuracy": location.horizontalAccuracy,
+                // Negative here really does mean "no idea", which is a null to a
+                // web page: the chip has a position but no doppler solution.
                 "speed": location.speed >= 0 ? location.speed : NSNull(),
                 "heading": location.course >= 0 ? location.course : NSNull()
             ]
