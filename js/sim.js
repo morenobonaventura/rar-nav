@@ -179,7 +179,8 @@ export async function maybeStart(gps, { search = location.search, onTick } = {})
   // what tests. That line is worth more than any in-app warning.
   const installed =
     globalThis.matchMedia?.("(display-mode: standalone)")?.matches ||
-    globalThis.navigator?.standalone === true;
+    globalThis.navigator?.standalone === true ||
+    globalThis.Capacitor?.isNativePlatform?.() === true; // the iOS app is the icon
   if (installed) return null;
 
   const res = await fetch(`data/tracks/${name}.json`).catch(() => null);

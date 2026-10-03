@@ -15,6 +15,7 @@ import { renderLegs, renderSaved, renderPolarTable, renderMarksTable, renderStat
          renderRecordingList } from "./ui.js";
 import { loadWaypoints, saveWaypoints, addWaypoint, removeWaypoint, nextWaypointName } from "./waypoints.js";
 import { TrackLog, MAX_ACCURACY_M, thin } from "./tracklog.js";
+import { plugin as nativePlugin, NativeBridge } from "./native.js";
 import { clock } from "./clock.js";
 import { VERSION } from "./version.js";
 
@@ -75,6 +76,20 @@ const wake = new Wake();
 // because a fix can arrive before the course has finished loading, and the
 // first minutes off the line are not the ones to lose.
 const trackLog = new TrackLog(storage());
+// The iOS app, when this is running inside it. In a browser it is null and
+// every line below that mentions it is a line that does nothing: the web app is
+// still the web app, on `navigator.geolocation` and a Wake Lock it has to ask
+// for nicely.
+const native = nativePlugin();
+const bridge = native
+  ? new NativeBridge(native, {
+      gps,
+      trackLog,
+      store: storage(),
+      // The fix chip already exists to say why there is no boat on the chart.
+      onError: (message) => { gps.error = message; gps.emit(); },
+    })
+  : null;
 let map, coastLayer, courseLayer, trackLayer, savedLayer, boatLayer, probeLayer, field, simTrail;
 
 // --- boot ------------------------------------------------------------------
@@ -142,7 +157,18 @@ async function boot() {
   syncRecordButton(); // a recording left open last time is still running
   rebuildCourse();
   gps.addEventListener("change", onGps);
-  gps.start();
+  if (bridge) {
+    // CoreLocation instead of the browser's geolocation: same fixes, same
+    // shape, but they keep coming with the screen off. Then collect whatever
+    // it recorded while this WebView was last asleep.
+    await bridge.start();
+    await drainNative();
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") drainNative();
+    });
+  } else {
+    gps.start();
+  }
 
   tickClock();
   setInterval(tickClock, 1000);
@@ -150,7 +176,9 @@ async function boot() {
   // cadence it is sampled at.
   setInterval(() => drawInstruments(), SAMPLE_MS);
 
-  registerServiceWorker();
+  // Nothing to cache in the app: the bundle IS the files, and a service worker
+  // sitting between them would only be another thing that can go stale.
+  if (!bridge) registerServiceWorker();
   startSimulationIfAsked();
 
   // A handle on the running app, for checking what it thinks is going on
@@ -845,10 +873,12 @@ function wireUi() {
   // Night mode and wake lock
   $("btn-night").addEventListener("click", () => setNight(!state.night));
   const awake = $("btn-awake");
-  if (!wake.supported) awake.hidden = true;
+  if (!wake.supported && !bridge) awake.hidden = true;
   awake.addEventListener("click", async () => {
     const on = awake.getAttribute("aria-pressed") !== "true";
-    const ok = await wake.set(on);
+    // Native keeps the screen on by turning off the idle timer, which is not a
+    // request anyone can refuse; the browser has to ask for a Wake Lock.
+    const ok = bridge ? await bridge.keepAwake(on) : await wake.set(on);
     awake.setAttribute("aria-pressed", String(on && ok));
   });
 
@@ -927,9 +957,25 @@ function editPolar(i, j, value) {
  * on state -- so a phone that locks itself, or an app closed for the night,
  * comes back recording the same track rather than quietly having stopped.
  */
-function setRecording(on) {
-  if (on) trackLog.start(clock.now());
-  else trackLog.stop(clock.now());
+async function setRecording(on) {
+  if (on) {
+    trackLog.start(clock.now());
+  } else {
+    // Everything CoreLocation collected while the screen was off belongs to
+    // the recording being closed, so it is collected before the switch, not
+    // left in the buffer for a recording that has already ended.
+    await drainNative();
+    trackLog.stop(clock.now());
+  }
+  syncRecordButton();
+  if ($("panel-setup").open) renderRecordings();
+}
+
+/** Pull the fixes taken while this WebView was asleep into the open recording. */
+async function drainNative() {
+  if (!bridge) return;
+  const { stored } = await bridge.drain();
+  if (!stored) return;
   syncRecordButton();
   if ($("panel-setup").open) renderRecordings();
 }
@@ -1038,6 +1084,12 @@ const fmtFileStamp = (t) =>
   new Date(t).toISOString().slice(0, 16).replace(/[-:]/g, "").replace("T", "-");
 
 function download(blob, name) {
+  // A WKWebView cannot hand over a file the way a browser does, so the app
+  // does it: the share sheet, with AirDrop, Files and Mail in it.
+  if (bridge) {
+    blob.text().then((text) => bridge.share(name, text));
+    return;
+  }
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
   a.download = name;

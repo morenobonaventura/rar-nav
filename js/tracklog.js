@@ -166,6 +166,42 @@ export class TrackLog {
     return this.flush() ? null : "storage";
   }
 
+  /**
+   * A batch of fixes, written once.
+   *
+   * The native side hands over everything CoreLocation collected while the
+   * WebView was asleep, which can be a whole night in one go. Offering them one
+   * at a time would rewrite the open chunk and the index per fix; this applies
+   * the same rules to all of them and flushes at the end of each chunk, so a
+   * drain costs about what recording that stretch would have cost live.
+   */
+  recordMany(fixes) {
+    const open = this.open;
+    if (!this.store || this.failed || !open) return { stored: 0, skipped: fixes.length };
+    let stored = 0;
+    for (const fix of fixes) {
+      if (!fix || !Number.isFinite(fix.lat) || !Number.isFinite(fix.lon)) continue;
+      if (Number.isFinite(fix.accuracy) && fix.accuracy > this.maxAccuracy) continue;
+      const t = Number(fix.t);
+      if (!Number.isFinite(t)) continue;
+      if (this.lastT != null && t - this.lastT < this.minGapMs) continue;
+
+      this.tail.push(csvLine(t, fix));
+      this.lastT = t;
+      if (!open.count) open.firstT = t;
+      open.lastT = t;
+      open.count += 1;
+      stored += 1;
+      if (this.tail.length >= this.chunkPoints) {
+        if (!this.flush()) return { stored, skipped: fixes.length - stored };
+        open.to += 1;
+        this.tail = [];
+      }
+    }
+    if (stored && !this.flush()) return { stored, skipped: fixes.length - stored };
+    return { stored, skipped: fixes.length - stored };
+  }
+
   /** Writes the open chunk and the index, making room first if there is none. */
   flush() {
     const open = this.open;
